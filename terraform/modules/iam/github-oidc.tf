@@ -30,7 +30,7 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:your-org/your-repo:*"]
+      values   = ["repo:theitoffshore/Java-CiCD-Github-Terraform:*"]
     }
   }
 }
