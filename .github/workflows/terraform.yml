@@ -1,0 +1,81 @@
+# Terraform plan/apply for infrastructure changes
+# This workflow is triggered on pull requests and pushes to the main branch
+name: Terraform Reusable Workflow
+on: workflow_call
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+          
+      # Terraform Linting
+      - name: Install tflint
+        uses: terraform-linters/setup-tflint@v2
+        with:
+          tflint_version: v0.47.0
+          
+      - name: Run tflint
+        run: |
+          tflint --init
+          tflint --module --enable-rule=terraform_documented_variables \
+                 --enable-rule=terraform_documented_outputs \
+                 --enable-rule=terraform_typed_variables \
+                 --enable-rule=terraform_naming_convention \
+                 --enable-rule=terraform_unused_declarations
+                 
+      # Checkov Security Scanning
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ${{ inputs.working-directory || './' }}
+          framework: terraform
+          quiet: true
+          soft_fail: false
+          download_external_modules: true
+          skip_check: CKV_AWS_115,CKV_AWS_111 # Example of checks to skip
+          
+      # Continue with existing steps
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+      
+      - name: Terraform Init
+        run: terraform init -input=false
+        
+      - name: Terraform Validate
+        run: terraform validate
+        
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+        continue-on-error: true
+        
+      - name: Terraform Plan Status
+        if: failure()
+        run: exit 1
+        
+      - name: Upload Terraform Plan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan
+          path: tfplan
+          
+      - name: Approve Plan
+        if: github.event_name == 'pull_request'
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.token }}
+          approvers: ${{ env.APPROVERS }}
+          
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -input=false tfplan

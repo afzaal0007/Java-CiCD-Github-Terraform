@@ -1,0 +1,34 @@
+output "cluster_name" {
+  description = "EKS cluster name"
+  value       = module.eks.cluster_name
+}
+
+output "cluster_endpoint" {
+  description = "Endpoint for EKS control plane"
+  value       = module.eks.cluster_endpoint
+}
+
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = module.vpc.vpc_id
+}
+
+output "eks_admin_role_arn" {
+  description = "ARN of the EKS admin role"
+  value       = module.iam.eks_admin_role_arn
+}
+
+output "ecr_repository_urls" {
+  description = "Map of repository names to repository URLs"
+  value       = module.ecr.repository_urls
+}
+
+output "state_bucket_name" {
+  description = "Name of the S3 bucket for Terraform state"
+  value       = module.state_storage.bucket_name
+}
+
+output "lock_table_name" {
+  description = "Name of the DynamoDB table for state locking"
+  value       = module.state_lock.table_name
+}

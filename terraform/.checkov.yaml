@@ -1,0 +1,17 @@
+soft-fail: false
+framework:
+  - terraform
+skip-check:
+  - CKV_AWS_115 # Skip "Ensure that AWS S3 Bucket has enabled versioning" if needed
+  - CKV_AWS_111 # Skip "Ensure IAM policies does not allow write access without constraints"
+download-external-modules: true
+quiet: false
+external-checks-dir:
+  - ./.checkov/custom_policies
+output:
+  - json
+  - html
+  - junitxml
+  - sarif
+  - cli
+  

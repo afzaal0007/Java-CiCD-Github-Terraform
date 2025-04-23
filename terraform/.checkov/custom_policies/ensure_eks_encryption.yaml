@@ -1,0 +1,14 @@
+metadata:
+  id: "CUSTOM_001"
+  name: "Ensure EKS clusters have encryption configured"
+  category: "ENCRYPTION"
+scope:
+  provider: aws
+resource_types:
+  - aws_eks_cluster
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - aws_eks_cluster
+  attribute: "encryption_config"
+  operator: "not_empty"
