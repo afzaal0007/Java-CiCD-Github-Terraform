@@ -1,13 +1,13 @@
-module "github_oidc" {
-  source = "./modules/iam/github-oidc"
+# module "github_oidc" {
+#   source = "./modules/iam/github-oidc"
 
-  github_org       = "your-org"
-  github_repo      = "your-repo"
-  state_bucket_arn = module.state_storage.bucket_arn
-  lock_table_arn   = module.state_lock.table_arn
-  cluster_name     = var.cluster_name
-  tags             = var.tags
-}
+#   github_org       = "afzaal0007"
+#   github_repo      = "Java-CiCD-Github-Terraform"
+#   state_bucket_arn = module.state_storage.bucket_arn
+#   lock_table_arn   = module.state_lock.table_arn
+#   cluster_name     = var.cluster_name
+#   #tags             = var.tags
+# }
 
 module "vpc" {
   source = "./modules/vpc"
@@ -41,10 +41,15 @@ data "aws_caller_identity" "current" {}
 
 module "iam" {
   source = "./modules/iam"
-
-  cluster_name     = var.cluster_name
+  
   trusted_entities = var.trusted_entities
   tags            = var.tags
+  github_org       = "afzaal0007"
+  github_repo      = "Java-CiCD-Github-Terraform"
+  repository_names     = "Java-CiCD-Github-Terraform"
+  state_bucket_arn = module.state_storage.bucket_arn
+  lock_table_arn   = module.state_lock.table_arn
+  cluster_name     = var.cluster_name
 }
 
 

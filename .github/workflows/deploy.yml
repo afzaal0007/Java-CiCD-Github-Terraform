@@ -1,4 +1,5 @@
 name: Deploy to EKS
+
 on:
   push:
     branches: [ main ]
@@ -14,17 +15,25 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Download image tag
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: image-tag
+        continue-on-error: false
           
       - name: Get image tag
         id: image-tag
         run: |
           IMAGE_TAG=$(cat image_tag.txt)
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+
+      - name: Validate Environment Variables
+        run: |
+          if [ -z "${{ env.IMAGE_TAG }}" ]; then
+            echo "IMAGE_TAG is not set"
+            exit 1
+          fi
           
       - name: Configure AWS Credentials
         uses: ./.github/workflows/configure-aws.yml
@@ -35,12 +44,18 @@ jobs:
         
       - name: Install Helm
         uses: azure/setup-helm@v3
+        with:
+          version: 'latest'  # You can specify a version like '3.12.0' if needed
         
       - name: Configure kubeconfig
         run: |
           aws eks update-kubeconfig \
             --name myapp-eks \
-            --region ${{ secrets.AWS_REGION }}
+            --region ${{ vars.AWS_REGION }}
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace myapp --dry-run=client -o yaml | kubectl apply -f -
             
       - name: Deploy with Helm
         run: |

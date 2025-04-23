@@ -3,6 +3,16 @@
 name: Terraform Reusable Workflow
 on: workflow_call
 
+inputs:
+  terraform-dir:
+    description: 'Directory containing Terraform configuration'
+    required: true
+    default: './terraform'
+  tf-version:
+    description: 'Terraform version to use'
+    required: false
+    default: '1.5.0'
+
 permissions:
   id-token: write
   contents: read
@@ -11,13 +21,18 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     environment: production
+  
     steps:
       - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: ./.github/workflows/configure-aws.yml
+        secrets: inherit
       
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.0
+          terraform_version: ${{ inputs.tf-version }}
           
       # Terraform Linting
       - name: Install tflint
@@ -33,12 +48,13 @@ jobs:
                  --enable-rule=terraform_typed_variables \
                  --enable-rule=terraform_naming_convention \
                  --enable-rule=terraform_unused_declarations
-                 
+        working-directory: ${{ inputs.terraform-dir }}  
+
       # Checkov Security Scanning
       - name: Run Checkov
         uses: bridgecrewio/checkov-action@v12
         with:
-          directory: ${{ inputs.working-directory || './' }}
+          directory: ${{ inputs.terraform-dir }}
           framework: terraform
           quiet: true
           soft_fail: false
@@ -48,15 +64,21 @@ jobs:
       # Continue with existing steps
       - name: Terraform Format
         run: terraform fmt -check -recursive
+        working-directory: ${{ inputs.terraform-dir }}
+        continue-on-error: true
       
       - name: Terraform Init
         run: terraform init -input=false
+        working-directory: ${{ inputs.terraform-dir }}
+        continue-on-error: true
         
       - name: Terraform Validate
         run: terraform validate
+        working-directory: ${{ inputs.terraform-dir }}
         
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
+        working-directory: ${{ inputs.terraform-dir }}
         continue-on-error: true
         
       - name: Terraform Plan Status
@@ -67,7 +89,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: tfplan
-          path: tfplan
+          path: ${{ inputs.terraform-dir }}/tfplan
           
       - name: Approve Plan
         if: github.event_name == 'pull_request'
@@ -79,3 +101,4 @@ jobs:
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -input=false tfplan
+        working-directory: ${{ inputs.terraform-dir }}

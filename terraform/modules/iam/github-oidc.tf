@@ -2,14 +2,11 @@ resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+  tags = merge(var.tags, {
+    Name = "github-oidc-provider"
+  })
 }
 
-resource "aws_iam_role" "github_actions" {
-  name               = "GitHubActionsRole"
-  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
-
-  tags = var.tags
-}
 
 data "aws_iam_policy_document" "github_actions_assume_role" {
   statement {
@@ -30,10 +27,28 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:theitoffshore/Java-CiCD-Github-Terraform:*"]
+     values   = [
+        "repo:${var.github_org}/${var.github_repo}:*",
+        "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/*",
+        "repo:${var.github_org}/${var.github_repo}:pull_request"
+      ]
     }
   }
 }
+
+
+resource "aws_iam_role" "github_actions" {
+  name               = "${var.cluster_name}-github-actions-role"
+  description        = "IAM role for GitHub Actions to access AWS resources"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+
+  tags = merge(var.tags, {
+    Name = "github-actions-role"
+  })
+}
+
+
+
 
 resource "aws_iam_role_policy_attachment" "github_actions_eks" {
   role       = aws_iam_role.github_actions.name
@@ -43,6 +58,16 @@ resource "aws_iam_role_policy_attachment" "github_actions_eks" {
 resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_s3" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_s3.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_dynamodb" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_dynamodb.arn
 }
 
 resource "aws_iam_role_policy" "github_actions_deploy" {

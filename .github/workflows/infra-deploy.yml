@@ -15,4 +15,4 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     secrets: inherit
     with:
-      working-directory: './terraform'
+      terraform-dir: './terraform'
