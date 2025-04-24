@@ -19,16 +19,76 @@ variable "private_subnets" {
   type        = list(string)
 }
 
-variable "aws_auth_users" {
-  description = "List of user ARNs to add to aws-auth configmap"
-  type        = list(any)
-  default     = []
+
+
+variable "public_subnets" {
+  description = "List of public subnet IDs"
+  type        = list(string)
+}
+variable "node_group_name" {
+  description = "Name of the EKS node group"
+  type        = string
 }
 
-variable "aws_auth_roles" {
-  description = "List of role ARNs to add to aws-auth configmap"
-  type        = list(any)
+variable "node_group_instance_type" {
+  description = "Instance type for the EKS node group"
+  type        = string
+  default     = "t3.medium"
+}
+variable "node_group_size" {
+  description = "Size of the EKS node group"
+  type        = number
+  default     = 2
+}
+variable "aws_auth_users" {
+  description = "List of IAM users to add to the aws-auth configmap"
+  type        = list(string)
   default     = []
+}
+variable "aws_auth_roles" {
+  description = "List of IAM roles to add to the aws-auth configmap"
+  type        = list(string)
+  default     = []
+}
+variable "repository_names" {
+  description = "List of ECR repository names"
+  type        = list(string)
+  default     = []
+}
+variable "trusted_entities" {
+  description = "List of trusted entities for IAM roles"
+  type        = list(string)
+  default     = []
+}
+variable "github_org" {
+  description = "GitHub organization name"
+  type        = string
+  default     = "afzaal0007"
+}
+variable "github_repo" {
+  description = "GitHub repository name"
+  type        = string
+  default     = "Java-CiCD-Github-Terraform"
+}
+variable "github_branch" {
+  description = "GitHub branch name"
+  type        = string
+  default     = "main"
+}
+variable "github_token" {
+  description = "GitHub token for accessing the repository"
+  type        = string
+  default     = ""
+}
+variable "github_token_secret" {
+  description = "GitHub token secret for accessing the repository"
+  type        = string
+  default     = ""
+}
+variable "github_token_id" {
+  description = "GitHub token ID for accessing the repository"
+  type        = string
+  default     = ""
 }
 
 variable "tags" {
@@ -41,4 +101,10 @@ variable "env" {
   description = "Environment name"
   type        = string
   default     = "dev"
+}
+
+variable "eks_version" {
+  description = "EKS version"
+  type        = string
+  default     = "1.31"
 }

@@ -8,7 +8,7 @@ resource "aws_eip" "eip-nat" {
 
 resource "aws_nat_gateway" "natgtw" {
   allocation_id = aws_eip.eip-nat.id
-  subnet_id     = aws_subnet.public_zone1.id
+  subnet_id     = aws_subnet.public-zone1-subnet.id
 
   tags = {
     Name = "${var.env}-natgtw"
