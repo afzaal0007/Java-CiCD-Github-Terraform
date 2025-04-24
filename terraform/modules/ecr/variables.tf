@@ -39,3 +39,28 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "lifecycle_rules" {
+  description = "List of lifecycle rule configurations"
+  type = list(object({
+    rulePriority = number
+    description  = string
+    tagStatus    = string
+    tagPrefixes  = optional(list(string))
+    countType    = string
+    countNumber  = number
+  }))
+  default = [{
+    rulePriority = 1
+    description  = "Keep last 30 images"
+    tagStatus    = "any"
+    countType    = "imageCountMoreThan"
+    countNumber  = 30
+  }]
+}
+
+variable "enable_lifecycle_policy" {
+  description = "Enable lifecycle policy for the repositories"
+  type        = bool
+  default     = true
+}

@@ -39,14 +39,14 @@ variable "zone2" {
 variable "priv-subnet1-cidr" {
   description = "CIDR block for the private subnet 1"
   type        = string
-  default     = "10.0.0.0/19"
+  default     = "10.0.1.0/24"
 }
 
 # variable for private subnet 2 cidr
 variable "priv-subnet2-cidr" {
   description = "CIDR block for the private subnet 2"
   type        = string
-  default     = "10.0.32.0/19"
+  default     = "10.0.2.0/24"
 }
 
 # variable for public subnet 1 cidr
@@ -54,12 +54,30 @@ variable "priv-subnet2-cidr" {
 variable "pub-subnet1-cidr" {
   description = "CIDR block for the public subnet 1"
   type        = string
-  default     = "10.0.64.0/19"
+  default     = "10.0.101.0/24"
 }
 
 # variable for public subnet 2 cidr
 variable "pub-subnet2-cidr" {
   description = "CIDR block for the public subnet 2"
   type        = string
-  default     = "10.0.96.0/19"
+  default     = "10.0.102.0/24"
+}
+
+variable "private_subnet_cidrs" {
+  description = "List of private subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+variable "public_subnet_cidrs" {
+  description = "List of public subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.101.0/24", "10.0.102.0/24"]
+}
+
+variable "tags" {
+  description = "Tags to be applied to the VPC and subnets"
+  type        = map(string)
+  default     = {}
 }

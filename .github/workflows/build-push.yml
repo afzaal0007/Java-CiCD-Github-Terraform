@@ -1,123 +1,95 @@
-# Build, Scan and Push Docker Image to Amazon ECR
-# This workflow builds a Docker image, scans it for vulnerabilities using Trivy,
-# and pushes it to Amazon ECR. It also performs a SonarCloud analysis on the code.
-# The workflow is triggered on pull requests and pushes to the main branch.
-# It uses the AWS OIDC provider for authentication and requires the following secrets:
-# - AWS_REGION: The AWS region where the ECR repository is located.
-# - AWS_IAM_ROLE_ARN: The ARN of the IAM role to assume for AWS access.
-# - SONAR_TOKEN: The SonarCloud token for authentication.
-# - SONAR_ORG: The SonarCloud organization key.
-# - SONAR_PROJECT_KEY: The SonarCloud project key.
-# - SONAR_PROJECT_NAME: The SonarCloud project name.
-# - AWS_ACCOUNT_ID: The AWS account ID (exported from the configure-aws job).
-# - GITHUB_TOKEN: The GitHub token for authentication (automatically provided by GitHub Actions).
-# The workflow also uploads the image tag as an artifact if the push is to the main branch.
-# The workflow uses the following actions:
-# - actions/checkout@v3: Checks out the repository code.
-# - SonarSource/sonarcloud-github-action@v1.8: Performs a SonarCloud analysis on the code.
-# - aws-actions/amazon-ecr-login@v1: Authenticates with Amazon ECR.
-# - aquasecurity/trivy-action@0.9.2: Scans the Docker image for vulnerabilities using Trivy.
-# - actions/upload-artifact@v3: Uploads the image tag as an artifact.
-# - actions/download-artifact@v3: Downloads the image tag artifact in the next job.
-# - aws-actions/configure-aws-credentials@v2: Configures AWS credentials using OIDC.
-# - aws-actions/amazon-ecr-login@v1: Authenticates with Amazon ECR.
-# - docker/build-push-action@v4: Builds and pushes the Docker image to Amazon ECR.
-# The workflow uses the following environment variables:
-# - AWS_ACCOUNT_ID: The AWS account ID (exported from the configure-aws job).
-# - IMAGE_TAG: The Docker image tag (set in the push step).
-# The workflow uses the following external workflows:
-# - configure-aws.yml: Configures AWS credentials using OIDC.
-# The workflow uses the following external jobs:
-# - configure-aws: Configures AWS credentials using OIDC.
-# The workflow uses the following external secrets:
-# - AWS_REGION: The AWS region where the ECR repository is located.
-# - AWS_IAM_ROLE_ARN: The ARN of the IAM role to assume for AWS access.
-# - SONAR_TOKEN: The SonarCloud token for authentication.
-# - SONAR_ORG: The SonarCloud organization key.
-# - SONAR_PROJECT_KEY: The SonarCloud project key.  
-# - SONAR_PROJECT_NAME: The SonarCloud project name.  
-# - AWS_ACCOUNT_ID: The AWS account ID (exported from the configure-aws job).
-# - GITHUB_TOKEN: The GitHub token for authentication (automatically provided by GitHub Actions).
-
-
-
-
 name: Build, Scan and Push
+
 on:
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
 
-permissions:
-  id-token: write
-  contents: read
-  security-events: write
-
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        java-version: [17, 21]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for SonarCloud analysis
-      
-      # SonarCloud Analysis
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v1.8
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
         with:
-          args: >
-            -Dsonar.organization=${{ secrets.SONAR_ORG }}
-            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
-            -Dsonar.projectName=${{ secrets.SONAR_PROJECT_NAME }}
-            -Dsonar.java.binaries=target/
-            -Dsonar.sources=src/
-            -Dsonar.exclusions=**/test/**,**/target/**
-            -Dsonar.tests=src/test/
-            -Dsonar.test.inclusions=**/*Test*/**
-            -Dsonar.junit.reportPaths=target/surefire-reports/*.xml
-            -Dsonar.jacoco.reportPaths=target/jacoco.exec
-      
-      - name: Configure AWS Credentials
-        uses: ./.github/workflows/configure-aws.yml
-        secrets: inherit
-        
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build with Maven
+        run: mvn -B clean package -DskipTests
+
+      - name: Run Tests
+        run: mvn -B test
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-        
-      - name: Build Docker image
-        run: docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/myapp:${{ github.sha }} .
-        
-      # Trivy Vulnerability Scan
-      - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@0.9.2
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and tag Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: myapp
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/myapp:${{ github.sha }}
+          image-ref: '${{ steps.login-ecr.outputs.registry }}/myapp:${{ github.sha }}'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
           vuln-type: 'os,library'
-          security-checks: 'vuln'
-          
-      - name: Push Docker image
-        if: success()
-        run: |
-          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/myapp:${{ github.sha }}
-          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-          
-      - name: Save image tag
+          severity: 'CRITICAL,HIGH'
+
+      - name: Push image to Amazon ECR
         if: github.ref == 'refs/heads/main'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: myapp
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "${{ env.IMAGE_TAG }}" > image_tag.txt
-          
-      - name: Upload image tag
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Run SonarCloud Analysis
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+        
+      - name: Save image tag as artifact
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v3
         with:
           name: image-tag
-          path: image_tag.txt
+          path: |
+            echo "${{ github.sha }}" > image-tag.txt

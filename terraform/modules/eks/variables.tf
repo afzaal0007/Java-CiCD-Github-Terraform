@@ -30,11 +30,7 @@ variable "node_group_name" {
   type        = string
 }
 
-variable "node_group_instance_type" {
-  description = "Instance type for the EKS node group"
-  type        = string
-  default     = "t3.medium"
-}
+
 variable "node_group_size" {
   description = "Size of the EKS node group"
   type        = number
@@ -108,3 +104,30 @@ variable "eks_version" {
   type        = string
   default     = "1.31"
 }
+
+# create a variable of type list for cluster_enabled_log_types
+variable "cluster_enabled_log_types" {
+  description = "List of cluster enabled log types"
+  type        = list(string)
+  default     = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+}
+
+variable "state_bucket_arn" {
+  description = "ARN of the S3 bucket for Terraform state"
+  type        = string
+  default     = "arn:aws:s3:::myapp-tf-state-099199746132"
+}
+  
+variable "lock_table_arn" {
+  description = "ARN of the DynamoDB table for Terraform state locking"
+  type        = string
+  default     = "arn:aws:dynamodb:ap-south-1:099199746132:table/terraform-locks"
+}
+
+# variable node_group_instance_type
+variable "node_group_instance_type" {
+  description = "Instance type for the EKS node group"
+  type        = string
+  default     = "t3.medium"
+}
+

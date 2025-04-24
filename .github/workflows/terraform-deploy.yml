@@ -1,0 +1,47 @@
+name: Terraform Deploy
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: true
+        type: string
+      terraform-version:
+        required: false
+        type: string
+        default: "latest"
+    secrets:
+      aws-role-arn:
+        required: true
+
+jobs:
+  terraform:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ap-south-1
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+      
+      - name: Terraform Init
+        run: terraform init
+      
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+      
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform apply -auto-approve tfplan

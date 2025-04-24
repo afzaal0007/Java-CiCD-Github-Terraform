@@ -17,25 +17,24 @@ resource "aws_ecr_repository" "this" {
 }
 
 resource "aws_ecr_lifecycle_policy" "this" {
-  for_each = aws_ecr_repository.this
+  for_each = var.enable_lifecycle_policy ? aws_ecr_repository.this : {}
 
   repository = each.value.name
-  policy     = <<EOF
-{
-  "rules": [
-    {
-      "rulePriority": 1,
-      "description": "Keep last ${var.keep_last_images} images",
-      "selection": {
-        "tagStatus": "any",
-        "countType": "imageCountMoreThan",
-        "countNumber": ${var.keep_last_images}
-      },
-      "action": {
-        "type": "expire"
+  policy     = jsonencode({
+    rules = [
+      for rule in var.lifecycle_rules : {
+        rulePriority = rule.rulePriority
+        description  = rule.description
+        selection = {
+          tagStatus   = rule.tagStatus
+          tagPrefixes = rule.tagPrefixes
+          countType   = rule.countType
+          countNumber = rule.countNumber
+        }
+        action = {
+          type = "expire"
+        }
       }
-    }
-  ]
-}
-EOF
+    ]
+  })
 }

@@ -1,0 +1,46 @@
+name: Helm Deploy
+
+on:
+  workflow_call:
+    inputs:
+      chart-path:
+        required: true
+        type: string
+      release-name:
+        required: true
+        type: string
+      namespace:
+        required: false
+        type: string
+        default: "default"
+      values:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      aws-role-arn:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ap-south-1
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+      
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install ${{ inputs.release-name }} ${{ inputs.chart-path }} \
+            --namespace ${{ inputs.namespace }} \
+            --create-namespace \
+            ${{ inputs.values }}

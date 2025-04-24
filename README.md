@@ -1,407 +1,318 @@
-## DevOps Depolyment: Java Application Deployment to AWS EKS
-
-# 1. Application Setup Approach
-In this section, I will outline the necessary steps to prepare your Java application for deployment.
-This is a solution for deploying a Java application to AWS EKS using Terraform for infrastructure provisioning and GitHub Actions for CI/CD. Here's my step-by-step approach:
-
-Application Setup:
-
-Create a basic Spring Boot application using start.spring.io
-
-Dockerize the application with a multi-stage Dockerfile
-
-Create a Helm chart with deployment, service, and ingress configurations
-
-Infrastructure as Code:
-
-Use Terraform to provision:
-
-VPC with public and private subnets
-
-EKS cluster with managed node groups
-
-IAM roles and policies
-
-Security groups
-
-Implement Terraform modules for better organization
-
-Configure remote state storage in S3 with locking via DynamoDB
-
-CI/CD Pipeline:
-
-Set up GitHub Actions workflows for:
-
-Building and pushing Docker images to ECR
-
-Terraform plan/apply for infrastructure
-
-Helm deployment to EKS
-
-Implement reusable workflows for common tasks
-
-Configure secure secret management
-
-Documentation:
-
-Provide clear README with setup instructions
-
-Document security considerations
-
-Explain architectural decisions
-
-Implementation Details
-
-1. Application Setup
-
-Spring Boot Application:
-
-Created using start.spring.io with:
-
-Java 17
-
-Spring Web dependency
-Actuator for health checks
-
-Helm Chart:
-Created with the following structure:
-
-charts/
-  ├── myapp/
-  │   ├── Chart.yaml
-  │   ├── values.yaml
-  │   ├── templates/
-  │   │   ├── deployment.yaml
-  │   │   ├── service.yaml
-  │   │   ├── ingress.yaml
-  │   │   ├── hpa.yaml
-  │   │   └── serviceaccount.yaml
-Key features:
-
-Configurable replica count
-
-Resource requests/limits
-
-Liveness/readiness probes
-
-Horizontal Pod Autoscaler
-
-Ingress with annotations for ALB
-
-2. Terraform Infrastructure
-Module Structure:
-
-infra/
-  ├── modules/
-  │   ├── vpc/
-  │   ├── eks/
-  │   ├── iam/
-  │   └── ecr/
-  ├── main.tf
-  ├── variables.tf
-  ├── outputs.tf
-  └── backend.tf
-Key Resources:
-
-VPC with NAT gateways in public subnets
-
-EKS cluster with:
-
-Managed node groups (separate for apps and system workloads)
-
-OIDC provider for IAM roles for service accounts
-
-AWS Load Balancer Controller
-
-Cluster Autoscaler
-
-ECR repository for container images
-
-IAM roles with least-privilege policies
-
-3. CI/CD Pipeline
-Workflows:
-
-infra-deploy.yml - Terraform plan/apply for infrastructure
-
-build-push.yml - Build and push Docker image on PR to main
-
-deploy.yml - Helm deployment to EKS on merge to main
-
-Reusable Workflows:
-
-terraform.yml - Shared Terraform steps
-
-configure-aws.yml - AWS auth setup
-
-Security:
-
-GitHub Actions OIDC provider for AWS credentials
-
-Secrets encrypted in transit and at rest
-
-IAM roles with minimal permissions
-
-4. Documentation
-README.md covers:
-
-Prerequisites (AWS account, tools installed)
-
-Setup instructions
-
-Workflow descriptions
-
-Security considerations
-
-Troubleshooting
-
-Challenges and Solutions
-EKS Authentication:
-
-Challenge: Securely authenticating GitHub Actions with EKS
-
-Solution: Implemented OIDC provider for GitHub Actions to assume IAM roles directly
-
-Terraform State Management:
-
-Challenge: Preventing state conflicts in team environments
-
-Solution: Configured S3 backend with DynamoDB locking
-
-Cost Optimization:
-
-Challenge: Minimizing AWS costs for assessment
-
-Solution: Used spot instances for worker nodes and smaller instance types
-
-Helm Deployment Automation:
-
-Challenge: Automating Helm dependencies and values
-
-Solution: Created a deployment script that handles namespace creation and value overrides
-
-Key Files
-Deployment Script (deploy.sh)
-
-Conclusion
-This implementation demonstrates a complete DevOps workflow for deploying Java applications to AWS EKS using modern practices:
-
-Infrastructure as Code with Terraform modules
-
-GitOps principles through GitHub Actions
-
-Security best practices with IAM roles and OIDC
-
-Scalability with HPA and cluster autoscaler
-
-Maintainability through clear documentation and modular design
-
-The solution can be easily extended for production use with additional features like:
-
-Canary deployments
-
-Monitoring integration
-
-Multi-region support
-
-Policy enforcement with OPA Gatekeeper
-
-
-Key Features of This Helm Chart:
-Production-Ready Configuration:
-
-Horizontal Pod Autoscaler with CPU and memory metrics
-
-Rolling update strategy with configurable surge/unavailability
-
-Resource limits and requests
-
-Liveness and readiness probes
-
-AWS ALB Integration:
-
-Proper annotations for ALB Ingress Controller
-
-Health check configuration
-
-Support for both HTTP and HTTPS
-
-Security Best Practices:
-
-Configurable security contexts
-
-Service account with IAM role capability (when used with EKS IAM roles for service accounts)
-
-Resource limits to prevent noisy neighbor issues
-
-Flexibility:
-
-Configurable through values.yaml
-
-Support for multiple environments
-
-Customizable probes, resources, and scaling
-
-Observability:
-
-Actuator endpoints for health checks
-
-Standardized metrics endpoints
-
-To use this chart, you would typically:
-
-Customize the values.yaml for your environment
-
-Run helm install myapp ./charts/myapp -f values-prod.yaml
-
-Or use it in your CI/CD pipeline as shown in the deployment script earlier
-
-Terraform module structure for your AWS EKS infrastructure, following best practices for modularity, security, and scalability:
-
-Directory Structure
-infra/
-├── modules/
-│   ├── vpc/
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   ├── eks/
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   ├── iam/
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   └── ecr/
-│       ├── main.tf
-│       ├── outputs.tf
-│       └── variables.tf
-├── main.tf
-├── variables.tf
-├── outputs.tf
-└── backend.tf
-
-Key Features of This Infrastructure:
-VPC Module:
-
-Public and private subnets across multiple AZs
-
-NAT gateways for outbound private subnet traffic
-
-Proper tagging for EKS integration
-
-EKS Module:
-
-Managed node groups with spot instances for apps and on-demand for system workloads
-
-OIDC provider for IAM roles for service accounts
-
-AWS Load Balancer Controller and Cluster Autoscaler support
-
-Core add-ons (VPC CNI, CoreDNS, kube-proxy)
-
-IAM Module:
-
-Least privilege roles for EKS administration
-
-Support for role assumption by trusted entities
-
-ECR Module:
-
-Private container repositories with lifecycle policies
-
-Image scanning on push
-
-Configurable retention policies
-
-Security Best Practices:
-
-Encryption at rest for ECR and Terraform state
-
-State locking with DynamoDB
-
-Network isolation with private subnets
-
-Fine-grained IAM permissions
-
-To use this infrastructure:
-
-Initialize Terraform: terraform init
-
-Plan the deployment: terraform plan
-
-Apply the changes: terraform apply
-
-The modules are designed to be reusable across environments by parameterizing all configurable values. The backend configuration should be customized with your own S3 bucket and DynamoDB table for state management.
-
-4. GitHub Secrets Setup
-You'll need to configure these secrets in your GitHub repository settings:
-
-AWS_IAM_ROLE - ARN of the IAM role created for GitHub Actions (output from Terraform)
-
-AWS_REGION - AWS region where resources are deployed (e.g., us-west-2)
-
-5. Implementation Steps
-Set up the OIDC provider and IAM roles:
-
-Apply the Terraform configuration that creates the OIDC provider and IAM roles
-
-Note the ARN of the created IAM role for GitHub Actions
-
-Configure GitHub Secrets:
-
-Go to your repository Settings > Secrets > Actions
-
-Add AWS_IAM_ROLE with the ARN from step 1
-
-Add AWS_REGION with your AWS region
-
-Commit the workflow files:
-
-Place all YAML files in .github/workflows/ directory
-
-Commit and push to trigger the initial workflow run
-
-Initial deployment:
-
-The first run of infra-deploy.yml will create your AWS infrastructure
-
-Subsequent PRs will trigger builds and push images to ECR
-
-Merges to main will trigger deployments to EKS
-
-Key Security Features:
-OIDC Authentication:
-
-No long-lived AWS credentials stored in GitHub
-
-Temporary credentials generated for each workflow run
-
-Fine-grained IAM permissions
-
-Least Privilege IAM:
-
-Separate policies for different actions
-
-Minimal permissions required for each task
-
-Workflow Approvals:
-
-Manual approval required for infrastructure changes
-
-Separate workflows for build and deploy
-
-Artifact Validation:
-
-Image tags passed securely between jobs
-
-Terraform plans reviewed before apply
-
-Environment Protection:
-
-Production environment with deployment gates
-
-Branch protection for main branch
-
-This implementation provides a secure, automated pipeline from code commit to production deployment while following DevOps best practices for infrastructure as code and continuous delivery.
+# Java Application Deployment to AWS EKS
+This project demonstrates a production-ready deployment of a Java Spring Boot application to Amazon EKS using GitHub Actions for CI/CD and Terraform for infrastructure provisioning.
+
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+- [Detailed Setup Guide](#detailed-setup-guide)
+  - [AWS Configuration](#aws-configuration)
+  - [GitHub Configuration](#github-configuration)
+  - [Local Development](#local-development)
+- [Infrastructure Components](#infrastructure-components)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [Security Considerations](#security-considerations)
+- [Monitoring and Maintenance](#monitoring-and-maintenance)
+- [Requirements Coverage](#requirements-coverage)
+- [Future Enhancements](#future-enhancements)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support](#support)
+- [Deployment Script (deploy.sh)](#deployment-script-deploys)
+- [Makefile Commands](#makefile-commands)
+
+## Prerequisites
+- AWS Account with appropriate permissions
+- GitHub Account
+- Local development tools:
+  - Java 17 or later
+  - Docker
+  - kubectl
+  - helm (v3.x)
+  - terraform (v1.x)
+  - AWS CLI v2
+
+## Project Structure
+```
+.
+├── .github/workflows/          # GitHub Actions workflow definitions
+├── app/                       # Java Spring Boot application
+├── chart/                    # Helm chart for Kubernetes deployment
+├── terraform/                # Infrastructure as Code
+│   ├── modules/             # Terraform modules
+│   │   ├── ecr/            # ECR repository
+│   │   ├── eks/            # EKS cluster
+│   │   ├── iam/            # IAM roles and policies
+│   │   └── vpc/            # Network infrastructure
+│   └── environments/       # Environment-specific configurations
+└── scripts/                # Utility scripts
+```
+
+## Quick Start
+1. Fork this repository
+2. Configure AWS credentials:
+   ```bash
+   aws configure
+   ```
+3. Set up GitHub Secrets:
+   - AWS_ROLE_ARN
+   - (Other required secrets)
+
+4. Initialize and apply Terraform:
+   ```bash
+   cd terraform
+   terraform init
+   terraform apply
+   ```
+
+5. Deploy the application:
+   ```bash
+   git push origin main
+   ```
+
+## Detailed Setup Guide
+
+### AWS Configuration
+
+1. Create an OIDC Provider:
+   ```bash
+   aws iam create-open-id-connect-provider \
+     --url https://token.actions.githubusercontent.com \
+     --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1" \
+     --client-id-list "sts.amazonaws.com"
+   ```
+
+2. Create IAM Role:
+   - Use the provided `github-oidc-trust.json`
+   - Attach necessary policies:
+     - AmazonEKSClusterPolicy
+     - AmazonECR-FullAccess
+     - Custom policies as needed
+
+### GitHub Configuration
+
+1. Add Repository Secrets:
+   - Go to Settings > Secrets and variables > Actions
+   - Add the following secrets:
+     - AWS_ROLE_ARN: arn:aws:iam::<account-id>:role/<role-name>
+
+2. Enable GitHub Actions:
+   - Go to Settings > Actions > General
+   - Enable "Allow all actions and reusable workflows"
+
+### Local Development
+
+1. Build the application:
+   ```bash
+   ./mvnw clean package
+   ```
+
+2. Build and run Docker image:
+   ```bash
+   docker build -t myapp .
+   docker run -p 8080:8080 myapp
+   ```
+
+3. Deploy to local Kubernetes (minikube):
+   ```bash
+   helm upgrade --install myapp ./chart/myapp
+   ```
+
+## Infrastructure Components
+
+### VPC Configuration
+- Region: ap-south-1
+- CIDR: 10.0.0.0/16
+- Public and private subnets
+- NAT Gateway for private subnet access
+
+### EKS Cluster
+- Version: 1.31
+- Managed node groups
+- Autoscaling enabled
+- AWS Load Balancer Controller
+- Metrics Server
+
+### Security Features
+- Private endpoint enabled
+- Network policies
+- Security groups
+- IAM roles for service accounts
+
+## CI/CD Pipeline
+
+### Workflow Stages
+1. Test
+   - Unit tests
+   - Integration tests
+   - Code quality checks
+
+2. Build & Push
+   - Multi-stage Docker build
+   - Container scanning
+   - Push to ECR
+
+3. Infrastructure
+   - Terraform plan/apply
+   - Infrastructure validation
+
+4. Deploy
+   - Helm chart deployment
+   - Health checks
+   - Rollback capability
+
+### Reusable Workflows
+- terraform-deploy.yml
+- helm-deploy.yml
+- configure-aws.yml
+
+## Security Considerations
+- OIDC authentication for GitHub Actions
+- Least privilege IAM roles
+- Network isolation
+- Container security
+- Secrets management
+
+## Monitoring and Maintenance
+- EKS Control Plane logging
+- Container Insights
+- Application metrics
+- Resource monitoring
+- Cost optimization
+
+## Requirements Coverage
+
+### 1. Application Setup 
+- Spring Boot application created with start.spring.io
+- Dockerfile with multi-stage build for optimization
+- Helm chart with all necessary components:
+  - Deployment configuration
+  - Service definition
+  - Ingress setup
+  - Horizontal Pod Autoscaler
+  - ServiceAccount configuration
+
+### 2. Terraform Infrastructure 
+- VPC module with public/private subnets
+- EKS module with managed node groups
+- ECR module with lifecycle policies
+- IAM module for roles and policies
+- Security best practices implemented
+
+### 3. CI/CD Pipeline with GitHub Actions 
+- Main CI/CD workflow
+- Build and push Docker images to ECR
+- Run tests
+- Infrastructure deployment
+- Application deployment to EKS
+- Reusable workflows for better maintainability
+
+### 4. Documentation 
+- Comprehensive README with setup instructions
+- AWS credentials configuration guide
+- Prerequisites listed
+- Security considerations documented
+
+### 5. Security Best Practices 
+- OIDC authentication for GitHub Actions
+- Least privilege IAM roles
+- Private subnets for EKS nodes
+- Container security with non-root user
+- Secure secrets management
+
+### 6. Production Readiness 
+- Helm chart with ingress and HPA
+- Resource limits and requests
+- Health checks and probes
+- Monitoring setup
+- Scalability configuration
+
+## Future Enhancements
+
+### 1. Testing Improvements
+- Add more comprehensive tests in the Java application
+- Include integration tests
+- Add container security scanning in CI/CD
+
+### 2. Documentation Enhancements
+- Add architecture diagrams
+- Include cost estimation
+- Add troubleshooting guide
+
+### 3. Monitoring Improvements
+- Add Prometheus metrics
+- Configure Grafana dashboards
+- Set up alerting
+
+## Deployment Script (deploy.sh)
+
+The `deploy.sh` script automates the deployment process with the following features:
+
+- **Input Validation**: Checks for required environment parameter
+- **AWS Integration**: Verifies AWS credentials and EKS configuration
+- **Kubernetes Setup**: Creates namespace if not exists
+- **Helm Deployment**: Deploys application with proper versioning
+- **Verification**: Checks deployment status
+
+Usage:
+```bash
+./deploy.sh <environment> [image-tag]
+# Example:
+./deploy.sh dev v1.0.0
+```
+
+Key Features:
+- AWS credentials verification
+- EKS kubeconfig auto-update
+- Namespace management
+- Helm deployment with timeout and atomic updates
+- Deployment verification (pods and ingress)
+- Error handling and logging
+
+## Makefile Commands
+
+The project includes a Makefile for common development tasks:
+
+```bash
+# Build commands
+make build         # Build application and Docker image
+make test         # Run tests
+
+# Docker commands
+make docker-build  # Build Docker image
+make docker-push   # Push to ECR
+
+# Deployment
+make deploy ENV=dev  # Deploy to dev environment
+make deploy ENV=prod # Deploy to production
+
+# Terraform commands
+make tf-init      # Initialize Terraform
+make tf-plan      # Plan infrastructure changes
+make tf-apply     # Apply infrastructure changes
+make tf-destroy   # Destroy infrastructure
+
+# Utility
+make clean        # Clean build artifacts
+make help         # Show all commands
+```
+
+Key Features:
+- Automated build and test processes
+- Docker image management
+- Environment-specific deployments
+- Infrastructure management
+- Clean-up utilities
+
+For detailed usage of each command, run `make help`.
+
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+
+## License
+MIT License
+
+## Support
+For issues and questions, please open a GitHub issue.

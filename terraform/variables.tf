@@ -70,6 +70,19 @@ variable "state_bucket_name" {
   default     = "myapp-tf-state-099199746132"
 }
 
+variable "state_bucket_arn" {
+  description = "ARN of the S3 bucket for Terraform state"
+  type        = string
+  default     = "arn:aws:s3:::myapp-tf-state-099199746132"
+}
+
+variable "lock_table_arn" {
+  description = "ARN of the DynamoDB table for Terraform state locking"
+  type        = string
+  default     = "arn:aws:dynamodb:ap-south-1:099199746132:table/terraform-locks"
+}
+
+
 variable "dynamodb_table_name" {
   description = "Name of the DynamoDB table for Terraform state locking"
   type        = string
@@ -81,3 +94,58 @@ variable "region" {
   type        = string
   default     = "ap-south-1"
 }
+
+variable "github_org" {
+  description = "GitHub organization name"
+  type        = string
+  default     = "afzaal0007"
+}
+
+variable "github_repo" {
+  description = "GitHub repository name"
+  type        = string
+  default     = "Java-CiCD-Github-Terraform"
+}
+
+variable "github_branch" {
+  description = "GitHub branch name"
+  type        = string
+  default     = "main"
+}
+
+variable "github_token" {
+  description = "GitHub token for accessing the repository"
+  type        = string
+  default     = ""
+}
+
+variable "github_token_secret" {
+  description = "GitHub token secret for accessing the repository"
+  type        = string
+  default     = ""
+}
+
+variable "github_token_id" {
+  description = "GitHub token ID for accessing the repository"
+  type        = string
+  default     = ""
+}
+
+variable "env" {
+  description = "Environment name"
+  type        = string
+  default     = "dev"
+}
+
+variable "eks_version" {
+  description = "EKS version"
+  type        = string
+  default     = "1.31"
+}
+
+variable "cluster_enabled_log_types" {
+  description = "List of cluster enabled log types"
+  type        = list(string)
+  default     = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+}
+  

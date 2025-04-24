@@ -25,13 +25,13 @@ output "ecr_repository_urls" {
 
 output "github_actions_role_arn" {
   description = "ARN of the GitHub OIDC role"
-  value       = module.iam.github_actions_role_arn
+  value       = module.github_oidc.github_actions_role_arn
 }
 output "github_actions_role_id" {
   description = "ID of the GitHub OIDC role"
-  value       = module.iam.github_actions_role_id
+  value       = module.github_oidc.github_actions_role_id
 }
 output "github_actions_role_name" {
   description = "Name of the GitHub OIDC role"
-  value       = module.iam.github_actions_role_name
+  value       = module.github_oidc.github_actions_role_name
 }

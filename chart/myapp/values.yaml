@@ -22,18 +22,21 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
-podAnnotations: {}
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: "/actuator/prometheus"
+  prometheus.io/port: "8080"
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext:
+  fsGroup: 1000
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
 
 service:
   type: ClusterIP
@@ -43,11 +46,15 @@ service:
 ingress:
   enabled: true
   className: "alb"
-  scheme: internet-facing
-  annotations: {}
-    # alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
   hosts:
-    - host: myapp.example.com
+    - host: api.yourdomain.com
       paths:
         - path: /
           pathType: Prefix
@@ -60,31 +67,35 @@ ingress:
 resources:
   limits:
     cpu: 1000m
-    memory: 1024Mi
+    memory: 1Gi
   requests:
     cpu: 500m
     memory: 512Mi
 
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 5
+  maxReplicas: 10
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
-
-probes:
-  liveness:
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readiness:
-    path: /actuator/health
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
 
 nodeSelector: {}
 
@@ -92,9 +103,11 @@ tolerations: []
 
 affinity: {}
 
-env: []
-  # - name: SPRING_PROFILES_ACTIVE
-  #   value: "prod"
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "prod"
+  - name: JAVA_OPTS
+    value: "-Xms512m -Xmx1024m -XX:+UseG1GC"
 
 strategy:
   type: RollingUpdate

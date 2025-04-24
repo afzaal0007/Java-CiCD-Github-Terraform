@@ -3,15 +3,92 @@ name: Infrastructure Deployment
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra-deploy.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra-deploy.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
 
 jobs:
-  deploy-infra:
+  terraform-plan:
+    name: Terraform Plan
     uses: ./.github/workflows/terraform.yml
     with:
       terraform-dir: "./terraform"
       tf-version: "1.5.0"
+      command: "plan"
+    secrets:
+      AWS_IAM_ROLE: ${{ secrets.AWS_IAM_ROLE }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+  post-plan:
+    needs: terraform-plan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan
+          
+      - name: Comment Plan on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.txt', 'utf8');
+            const comment = `#### Terraform Plan 📝\`${{ github.sha }}\`
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`hcl
+            ${plan}
+            \`\`\`
+            
+            </details>
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            })
+
+  approve-changes:
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 60
+    steps:
+      - name: Manual approval
+        run: |
+          echo "Infrastructure changes have been approved for production deployment"
+
+  terraform-apply:
+    needs: approve-changes
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      terraform-dir: "./terraform"
+      tf-version: "1.5.0"
+      command: "apply"
     secrets:
       AWS_IAM_ROLE: ${{ secrets.AWS_IAM_ROLE }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
