@@ -1,18 +1,17 @@
-
 name: Infrastructure Deployment
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   deploy-infra:
     uses: ./.github/workflows/terraform.yml
-    secrets: inherit
     with:
-      terraform-dir: './terraform'
+      terraform-dir: "./terraform"
+      tf-version: "1.5.0"
+    secrets:
+      AWS_IAM_ROLE: ${{ secrets.AWS_IAM_ROLE }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}

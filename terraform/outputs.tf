@@ -23,12 +23,15 @@ output "ecr_repository_urls" {
   value       = module.ecr.repository_urls
 }
 
-output "state_bucket_name" {
-  description = "Name of the S3 bucket for Terraform state"
-  value       = module.state_storage.bucket_name
+output "github_oidc_role_arn" {
+  description = "ARN of the GitHub OIDC role"
+  value       = module.iam.github_oidc_role_arn
 }
-
-output "lock_table_name" {
-  description = "Name of the DynamoDB table for state locking"
-  value       = module.state_lock.table_name
+output "github_oidc_role_id" {
+  description = "ID of the GitHub OIDC role"
+  value       = module.iam.github_oidc_role_id
+}
+output "github_oidc_role_name" {
+  description = "Name of the GitHub OIDC role"
+  value       = module.iam.github_oidc_role_name
 }

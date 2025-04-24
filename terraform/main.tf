@@ -9,32 +9,26 @@
 #   #tags             = var.tags
 # }
 
-module "vpc" {
-  source = "./modules/vpc"
 
-  cluster_name    = var.cluster_name
-  vpc_cidr        = var.vpc_cidr
-  azs             = var.azs
-  private_subnets = var.private_subnets
-  public_subnets  = var.public_subnets
-  tags            = var.tags
+resource "aws_vpc" "main" {
+  cidr_block = local.vpc_cidr
+
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "${local.env}-main"
+  }
 }
 
 
-module "state_storage" {
-  source = "./modules/s3"
+# data "aws_eks_cluster" "cluster" {
+#   name = module.eks.cluster_name
+# }
 
-  bucket_name        = "${var.cluster_name}-tf-state-${data.aws_caller_identity.current.account_id}"
-  enable_bucket_policy = true
-  tags              = var.tags
-}
-
-module "state_lock" {
-  source = "./modules/dynamodb"
-
-  table_name = "${var.cluster_name}-tf-locks"
-  tags       = var.tags
-}
+# data "aws_eks_cluster_auth" "cluster" {
+#   name = module.eks.cluster_name
+# }
 
 data "aws_caller_identity" "current" {}
 
@@ -46,9 +40,9 @@ module "iam" {
   tags            = var.tags
   github_org       = "afzaal0007"
   github_repo      = "Java-CiCD-Github-Terraform"
-  repository_names     = "Java-CiCD-Github-Terraform"
-  state_bucket_arn = module.state_storage.bucket_arn
-  lock_table_arn   = module.state_lock.table_arn
+  # repository_names     = "Java-CiCD-Github-Terraform"
+  # state_bucket_arn = module.state_storage.bucket_arn
+  # lock_table_arn   = module.state_lock.table_arn
   cluster_name     = var.cluster_name
 }
 
