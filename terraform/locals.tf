@@ -3,7 +3,7 @@ locals {
   region                   = "ap-south-1"
   zone1                    = "ap-south-1a"
   zone2                    = "ap-south-1b"
-  cluster_name             = "eks-spring"
+  cluster_name             = "myapp-eks"
   eks_version              = "1.31"
   vpc_cidr                 = "10.0.0.0/16"
   private_subnet1_cidr     = "10.0.0.0/19"

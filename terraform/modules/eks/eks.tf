@@ -1,5 +1,5 @@
 resource "aws_iam_role" "eks-role" {
-  name = "${var.env}-${var.cluster_name}-eks-cluster-role"
+  name = "${var.cluster_name}-eks-cluster-role"
 
   assume_role_policy = <<POLICY
 {
@@ -23,7 +23,7 @@ resource "aws_iam_role_policy_attachment" "eks" {
 }
 
 resource "aws_eks_cluster" "eks" {
-  name     = "${var.env}-${var.cluster_name}"
+  name     = var.cluster_name
   version  = var.cluster_version
   role_arn = aws_iam_role.eks-role.arn
 

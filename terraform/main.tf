@@ -1,14 +1,14 @@
 # Enable GitHub OIDC for secure authentication
-# module "github_oidc" {
-#   source = "./modules/github-oidc"
+module "github_oidc" {
+  source = "./modules/github-oidc"
 
-#   github_org    = "afzaal0007"
-#   github_repo   = "Java-CiCD-Github-Terraform"
-#   cluster_name  = var.cluster_name
-#   tags         = local.tags
-#   state_bucket_arn = var.state_bucket_arn
-#   lock_table_arn   = var.lock_table_arn
-# }
+  github_org    = "afzaal0007"
+  github_repo   = "Java-CiCD-Github-Terraform"
+  cluster_name  = var.cluster_name
+  tags         = local.tags
+  state_bucket_arn = var.state_bucket_arn
+  lock_table_arn   = var.lock_table_arn
+}
 
 
 data "aws_iam_openid_connect_provider" "github" {

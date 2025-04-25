@@ -3,50 +3,50 @@
 name: Infrastructure Deployment
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/infra-deploy.yml'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/infra-deploy.yml'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  workflow_call:
+    inputs:
+      aws_role_arn:
+        required: true
+        type: string
+      aws_region:
+        required: true
+        type: string
+      terraform_version:
+        required: true
+        type: string
 
 permissions:
   id-token: write
   contents: read
-  pull-requests: write
 
 jobs:
-  terraform-plan:
-    name: Terraform Plan
-    uses: ./.github/workflows/terraform-deploy.yml
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-    with:
-      working-directory: "./terraform"
-      terraform-version: "1.5.0"
-    secrets:
-      aws-role-arn: arn:aws:iam::099199746132:role/my-eks-cluster-github-actions-role
-
-  terraform-apply:
-    name: Terraform Apply
-    needs: terraform-plan
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      id-token: write
-      contents: read
-    uses: ./.github/workflows/terraform-deploy.yml
-    with:
-      working-directory: "./terraform"
-      terraform-version: "1.5.0"
-    secrets:
-      aws-role-arn: arn:aws:iam::099199746132:role/my-eks-cluster-github-actions-role
+  deploy:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+      
+      - name: Terraform Init
+        run: terraform init
+      
+      - name: Terraform Plan
+        run: terraform plan
+      
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform apply -auto-approve

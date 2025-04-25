@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Deploy to EKS
 
 on:
   workflow_call:
@@ -9,7 +9,13 @@ on:
       aws_region:
         required: true
         type: string
+      eks_cluster_name:
+        required: true
+        type: string
       ecr_repository:
+        required: true
+        type: string
+      image_tag:
         required: true
         type: string
 
@@ -18,11 +24,9 @@ permissions:
   contents: read
 
 jobs:
-  build-push:
-    name: Build and Push Docker Image
+  deploy:
+    name: Deploy to EKS
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.image-tag.outputs.tag }}
     
     steps:
       - uses: actions/checkout@v4
@@ -37,16 +41,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       
-      - name: Generate Image Tag
-        id: image-tag
-        run: |
-          TAG="$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ inputs.eks_cluster_name }} --region ${{ inputs.aws_region }}
       
-      - name: Build and Push Image
+      - name: Deploy to EKS
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
-          docker build -t $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG
+          kubectl set image deployment/myapp myapp=$ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG 
