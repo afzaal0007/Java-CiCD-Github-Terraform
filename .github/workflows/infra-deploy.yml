@@ -27,67 +27,26 @@ jobs:
   terraform-plan:
     name: Terraform Plan
     uses: ./.github/workflows/terraform-deploy.yml
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
     with:
       working-directory: "./terraform"
       terraform-version: "1.5.0"
     secrets:
-      aws-role-arn: ${{ secrets.AWS_IAM_ROLE }}
-
-  post-plan:
-    needs: terraform-plan
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: terraform-plan
-          
-      - name: Comment Plan on PR
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('plan.txt', 'utf8');
-            const comment = `#### Terraform Plan 📝\`${{ github.sha }}\`
-            
-            <details><summary>Show Plan</summary>
-            
-            \`\`\`hcl
-            ${plan}
-            \`\`\`
-            
-            </details>
-            
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            })
-
-  approve-changes:
-    needs: terraform-plan
-    runs-on: ubuntu-latest
-    environment: 
-      name: production
-      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    if: github.ref == 'refs/heads/main'
-    timeout-minutes: 60
-    steps:
-      - name: Manual approval
-        run: |
-          echo "Infrastructure changes have been approved for production deployment"
+      aws-role-arn: arn:aws:iam::099199746132:role/my-eks-cluster-github-actions-role
 
   terraform-apply:
     name: Terraform Apply
-    needs: approve-changes
+    needs: terraform-plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      id-token: write
+      contents: read
     uses: ./.github/workflows/terraform-deploy.yml
     with:
       working-directory: "./terraform"
       terraform-version: "1.5.0"
     secrets:
-      aws-role-arn: ${{ secrets.AWS_IAM_ROLE }}
+      aws-role-arn: arn:aws:iam::099199746132:role/my-eks-cluster-github-actions-role

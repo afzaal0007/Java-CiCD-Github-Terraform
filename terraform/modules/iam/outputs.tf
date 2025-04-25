@@ -1,11 +1,7 @@
 output "eks_admin_role_arn" {
-  description = "ARN of the EKS admin role"
-  value       = aws_iam_role.eks_admin.arn
+  value = length(aws_iam_role.eks_admin) > 0 ? aws_iam_role.eks_admin[0].arn : data.aws_iam_role.eks_admin_existing.arn
 }
 
 output "eks_admin_role_name" {
-  description = "Name of the EKS admin role"
-  value       = aws_iam_role.eks_admin.name
+  value = length(aws_iam_role.eks_admin) > 0 ? aws_iam_role.eks_admin[0].name : data.aws_iam_role.eks_admin_existing.name
 }
-
-

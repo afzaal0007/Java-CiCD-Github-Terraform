@@ -27,11 +27,7 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [
-        "repo:${var.github_org}/${var.github_repo}:*",
-        "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/*",
-        "repo:${var.github_org}/${var.github_repo}:pull_request"
-      ]
+      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
     }
   }
 }
@@ -40,6 +36,38 @@ resource "aws_iam_role" "github_actions" {
   name               = "${var.cluster_name}-github-actions-role"
   description        = "IAM role for GitHub Actions CI/CD pipeline"
   assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+
+  inline_policy {
+    name = "terraform-state-access"
+    policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:ListBucket",
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject"
+          ]
+          Resource = [
+            var.state_bucket_arn,
+            "${var.state_bucket_arn}/*"
+          ]
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:DeleteItem",
+            "dynamodb:DescribeTable"
+          ]
+          Resource = [var.lock_table_arn]
+        }
+      ]
+    })
+  }
 
   tags = merge(var.tags, {
     Name = "github-actions-role"
@@ -55,65 +83,17 @@ resource "aws_iam_role_policy_attachment" "github_actions_eks" {
 # ECR Policy Attachment
 resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
 }
 
-# S3 State Access Policy
-resource "aws_iam_policy" "github_actions_s3" {
-  name        = "${var.cluster_name}-github-actions-s3"
-  description = "Permissions for GitHub Actions to access Terraform state bucket"
-  policy      = data.aws_iam_policy_document.github_actions_s3.json
-}
-
-resource "aws_iam_role_policy_attachment" "github_actions_s3" {
+# VPC Policy Attachment
+resource "aws_iam_role_policy_attachment" "github_actions_vpc" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_s3.arn
+  policy_arn = "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
 }
 
-# DynamoDB Lock Table Policy
-resource "aws_iam_policy" "github_actions_dynamodb" {
-  name        = "${var.cluster_name}-github-actions-dynamodb"
-  description = "Permissions for GitHub Actions to access Terraform lock table"
-  policy      = data.aws_iam_policy_document.github_actions_dynamodb.json
-}
-
-resource "aws_iam_role_policy_attachment" "github_actions_dynamodb" {
+# IAM Policy Attachment
+resource "aws_iam_role_policy_attachment" "github_actions_iam" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_dynamodb.arn
-}
-
-# S3 Policy Document
-data "aws_iam_policy_document" "github_actions_s3" {
-  statement {
-    effect    = "Allow"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
-    resources = [
-      "arn:aws:s3:::myapp-tf-state-099199746132",
-      "arn:aws:s3:::myapp-tf-state-099199746132/*"
-    ]
-  }
-}
-
-# DynamoDB Policy Document
-data "aws_iam_policy_document" "github_actions_dynamodb" {
-  statement {
-    effect    = "Allow"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
-    resources = ["arn:aws:dynamodb:ap-south-1:099199746132:table/terraform-locks"]
-  }
-}
-
-# Additional Deployment Policy (if needed)
-resource "aws_iam_role_policy" "github_actions_deploy" {
-  name   = "${var.cluster_name}-github-actions-deploy"
-  role   = aws_iam_role.github_actions.name
-  policy = data.aws_iam_policy_document.github_actions_deploy.json
-}
-
-data "aws_iam_policy_document" "github_actions_deploy" {
-  statement {
-    effect    = "Allow"
-    actions   = ["eks:DescribeCluster"]
-    resources = ["*"]
-  }
+  policy_arn = "arn:aws:iam::aws:policy/IAMFullAccess"
 }

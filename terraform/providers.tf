@@ -1,11 +1,12 @@
 provider "aws" {
+  alias  = "github_oidc"
   region = local.region
 }
 
 terraform {
   required_version = ">= 1.0"
 
-    backend "s3" {
+  backend "s3" {
     bucket         = "myapp-tf-state-099199746132" # This will be replaced by the actual bucket name after first apply
     key            = "prod/terraform.tfstate"
     region         = "ap-south-1"

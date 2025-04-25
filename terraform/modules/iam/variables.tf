@@ -6,7 +6,7 @@ variable "cluster_name" {
 variable "trusted_entities" {
   description = "List of ARNs that can assume this role"
   type        = list(string)
-  default     = []
+  default     = ["arn:aws:iam::099199746132:root"]
 }
 
 variable "tags" {

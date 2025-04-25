@@ -12,29 +12,30 @@ resource "aws_ecr_repository" "this" {
     encryption_type = var.encryption_type
     kms_key        = var.kms_key_arn
   }
+# encryption_configuration {
+#   encryption_type = var.encryption_type
+#   kms_key_id      = var.kms_key_arn  # Corrected from kms_key -> kms_key_id
+# }
 
   tags = merge(var.tags, { Name = each.key })
 }
 
 resource "aws_ecr_lifecycle_policy" "this" {
-  for_each = var.enable_lifecycle_policy ? aws_ecr_repository.this : {}
-
-  repository = each.value.name
+  for_each  = aws_ecr_repository.this
+  repository = each.value.name  # Correct reference
   policy     = jsonencode({
-    rules = [
-      for rule in var.lifecycle_rules : {
-        rulePriority = rule.rulePriority
-        description  = rule.description
-        selection = {
-          tagStatus   = rule.tagStatus
-          tagPrefixes = rule.tagPrefixes
-          countType   = rule.countType
-          countNumber = rule.countNumber
-        }
-        action = {
-          type = "expire"
-        }
+    rules = [{
+      rulePriority = 1,
+      description  = "Expire old tagged images"
+      selection = {
+        tagStatus     = "tagged"
+        tagPrefixList = ["v"]
+        countType     = "imageCountMoreThan"
+        countNumber   = 5
       }
-    ]
+      action = {
+        type = "expire"
+      }
+    }]
   })
 }
