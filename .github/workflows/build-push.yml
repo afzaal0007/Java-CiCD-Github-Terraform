@@ -18,6 +18,9 @@ permissions:
   contents: read
 
 jobs:
+
+# Build Application and Push Container Images to ECR 
+
   build-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest

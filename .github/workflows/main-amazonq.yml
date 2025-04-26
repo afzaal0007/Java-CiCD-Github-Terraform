@@ -1,0 +1,139 @@
+# Name of the GitHub Actions workflow
+name: CI/CD Pipeline
+
+# Defines when the workflow will be triggered
+on:
+  push:
+    branches: [ main ]  # Triggers on push to main branch
+  pull_request:
+    branches: [ main ]  # Triggers on pull requests to main branch
+
+# Concurrency control to prevent multiple deployments running simultaneously
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+# Environment variables that can be used across all jobs
+env:
+  ECR_REPOSITORY: myapp          # Name of the ECR repository
+  EKS_CLUSTER_NAME: my-cluster   # Name of the EKS cluster
+  TERRAFORM_VERSION: 1.5.0       # Version of Terraform to use
+
+# Permissions required for the workflow
+permissions:
+  id-token: write    # Allows OIDC authentication
+  contents: read     # Allows reading repository contents
+
+# Definition of all jobs in the workflow
+jobs:
+  # First job: Deploys infrastructure using Terraform (previously second job)
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10    # Add timeout to prevent hanging jobs
+    environment:
+      name: production
+      url: https://your-production-url.com
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: false
+      
+      # Add caching for Terraform
+      - uses: actions/cache@v3
+        with:
+          path: ~/.terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+      
+      - name: Deploy Infrastructure
+        id: terraform-deploy
+        uses: ./.github/workflows/infra-deploy.yml   # Uses local action for infrastructure deployment
+        with:
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          aws_region: ${{ secrets.AWS_REGION }}
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+  # Second job: Builds and pushes Docker image (previously first job)
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: deploy-infrastructure    # Now depends on infrastructure deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}  # Outputs image tag for use in other jobs
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: false
+      
+      # Add caching for Docker layers
+      - uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      
+      - name: Build and Push
+        id: build
+        uses: ./.github/workflows/build-push.yml    # Uses local action for build/push
+        with:
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          aws_region: ${{ secrets.AWS_REGION }}
+          ecr_repository: ${{ env.ECR_REPOSITORY }}
+
+  # Third job: Deploys the application to EKS
+  deploy-application:
+    name: Deploy Application
+    needs: [build-and-push, deploy-infrastructure]   # Depends on both previous jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    environment:
+      name: production
+      url: https://your-production-url.com
+    if: ${{ success() }}  # Only run if previous jobs succeeded
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: false
+      
+      # Add caching for kubectl and helm
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.kube
+            ~/.helm
+          key: ${{ runner.os }}-k8s-${{ hashFiles('**/*.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-k8s-
+      
+      - name: Deploy Application
+        id: deploy
+        uses: ./.github/workflows/Deploy-Helm-Charts-to-EKS.yml    # Uses local action for application deployment
+        with:
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          aws_region: ${{ secrets.AWS_REGION }}
+          eks_cluster_name: ${{ env.EKS_CLUSTER_NAME }}
+          ecr_repository: ${{ env.ECR_REPOSITORY }}
+          image_tag: ${{ needs.build-and-push.outputs.image_tag }}  # Uses image tag from build job
+
+      # Add post-deployment health check
+      - name: Health Check
+        if: success()
+        run: |
+          echo "Performing health check..."
+          # Add your health check commands here
+          
+      # Add notification step
+      - name: Notify Deployment Status
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const status = ${{ job.status }}
+            const message = `Deployment to production ${status}`
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              body: message
+            })
