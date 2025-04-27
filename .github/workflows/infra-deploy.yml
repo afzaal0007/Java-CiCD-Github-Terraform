@@ -19,11 +19,11 @@ permissions:
 
 jobs:
   deploy:
-    name: Checkout and Deploy Infrastructure
+   
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
       - run: echo "Working directory is ./terraform"
         working-directory: ./terraform
