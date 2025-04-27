@@ -1,8 +1,14 @@
-name: Infrastructure Deployment
+name: Deploy Infrastructure
 
 on:
   workflow_call:
     inputs:
+      aws_role_arn:
+        required: true
+        type: string
+      aws_region:
+        required: true
+        type: string
       terraform_version:
         required: true
         type: string
