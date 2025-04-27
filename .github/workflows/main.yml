@@ -9,13 +9,14 @@ on:
       - main
 
 concurrency:
-  group: production
+  group: production-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   ECR_REPOSITORY: myapp
   EKS_CLUSTER_NAME: my-cluster
   TERRAFORM_VERSION: 1.5.0
+  PRODUCTION_URL: https://your-production-url.com
 
 permissions:
   id-token: write
@@ -23,7 +24,6 @@ permissions:
 
 jobs:
   deploy-infrastructure:
-    name: Deploy Infrastructure
     uses: ./.github/workflows/infra-deploy.yml
     with:
       aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
@@ -32,9 +32,8 @@ jobs:
     secrets: inherit
 
   build-and-push:
-    name: Build and Push Docker Image
-    needs: deploy-infrastructure
     uses: ./.github/workflows/build-push.yml
+    needs: deploy-infrastructure
     with:
       aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
       aws_region: ${{ vars.AWS_REGION }}
@@ -47,17 +46,15 @@ jobs:
       - build-and-push
       - deploy-infrastructure
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15  # Increased from 7
     environment:
       name: production
-      url: https://your-production-url.com
-    if: ${{ success() }}
+      url: ${{ env.PRODUCTION_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Kubernetes and Helm configurations
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.kube
@@ -66,19 +63,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-k8s-
 
+      - name: Verify deploy script exists
+        run: test -f .github/workflows/scripts/deploy.sh || (echo "Deploy script not found" && exit 1)
+
       - name: Deploy Application to EKS
         run: |
-          chmod +x .github/scripts/deploy.sh
-          .github/scripts/deploy.sh \
+          chmod +x .github/workflows/scripts/deploy.sh
+          .github/workflows/scripts/deploy.sh \
             "${{ vars.AWS_ROLE_ARN }}" \
             "${{ vars.AWS_REGION }}" \
             "${{ env.EKS_CLUSTER_NAME }}" \
             "${{ env.ECR_REPOSITORY }}" \
-            "${{ needs.build-and-push.outputs.image_tag }}"
+            "${{ needs.build-and-push.outputs.image_tag }}" || exit 1
 
       - name: Health Check
-        if: success()
-        run: echo "Performing health check..."
+        run: |
+          echo "Performing health check..."
+          # Add actual health check commands here
+          # curl -sSf ${{ env.PRODUCTION_URL }}/health || exit 1
 
       - name: Notify Deployment Status
         if: always()
@@ -87,9 +89,14 @@ jobs:
           script: |
             const status = '${{ job.status }}';
             const message = `Deployment to production ${status}`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.name,
-              body: message
-            });
+            if (context.payload.pull_request) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                body: message
+              });
+            } else {
+              console.log(message);
+              // Alternative notification for non-PR triggers
+            }
