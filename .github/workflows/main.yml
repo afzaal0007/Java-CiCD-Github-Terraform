@@ -25,24 +25,24 @@ jobs:
   deploy-infrastructure:
     uses: ./.github/workflows/infra-deploy.yml
     with:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-      aws_region: ${{ secrets.AWS_REGION }}
-      terraform_version: '1.5.0'
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+      aws_region: ${{ vars.AWS_REGION }}
+      terraform_version: ${{ env.TERRAFORM_VERSION }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
 
-  build-and-push:
-    name: Build and Push Docker Image
-    needs: deploy-infrastructure
+
+ build-and-push:
     uses: ./.github/workflows/build-push.yml
+    needs: deploy-infrastructure
+    with:
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+      aws_region: ${{ vars.AWS_REGION }}
+      ecr_repository: ${{ env.ECR_REPOSITORY }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
-    with:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-      aws_region: ${{ secrets.AWS_REGION }}
-      ecr_repository: ${{ env.ECR_REPOSITORY }}
 
   deploy-application:
     name: Deploy Application
