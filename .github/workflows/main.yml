@@ -23,26 +23,23 @@ permissions:
 
 jobs:
   deploy-infrastructure:
+    name: Deploy Infrastructure
     uses: ./.github/workflows/infra-deploy.yml
     with:
       aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
       aws_region: ${{ vars.AWS_REGION }}
       terraform_version: ${{ env.TERRAFORM_VERSION }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
+    secrets: inherit
 
-
- build-and-push:
-    uses: ./.github/workflows/build-push.yml
+  build-and-push:
+    name: Build and Push Docker Image
     needs: deploy-infrastructure
+    uses: ./.github/workflows/build-push.yml
     with:
       aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
       aws_region: ${{ vars.AWS_REGION }}
       ecr_repository: ${{ env.ECR_REPOSITORY }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
+    secrets: inherit
 
   deploy-application:
     name: Deploy Application
@@ -50,7 +47,7 @@ jobs:
       - build-and-push
       - deploy-infrastructure
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 10
     environment:
       name: production
       url: https://your-production-url.com
@@ -59,7 +56,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: actions/cache@v4
+      - name: Cache Kubernetes and Helm configurations
+        uses: actions/cache@v4
         with:
           path: |
             ~/.kube
@@ -68,15 +66,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-k8s-
 
-      - name: Deploy Application
-        id: deploy
+      - name: Deploy Application to EKS
         run: |
-          ./github/workflows/Deploy-Helm-Charts-to-EKS.yml \
-          --aws_role_arn=${{ secrets.AWS_ROLE_ARN }} \
-          --aws_region=${{ secrets.AWS_REGION }} \
-          --eks_cluster_name=${{ env.EKS_CLUSTER_NAME }} \
-          --ecr_repository=${{ env.ECR_REPOSITORY }} \
-          --image_tag=${{ needs.build-and-push.outputs.image_tag }}
+          chmod +x .github/scripts/deploy.sh
+          .github/scripts/deploy.sh \
+            "${{ vars.AWS_ROLE_ARN }}" \
+            "${{ vars.AWS_REGION }}" \
+            "${{ env.EKS_CLUSTER_NAME }}" \
+            "${{ env.ECR_REPOSITORY }}" \
+            "${{ needs.build-and-push.outputs.image_tag }}"
 
       - name: Health Check
         if: success()

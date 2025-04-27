@@ -3,49 +3,54 @@ name: Build and Push Docker Image
 on:
   workflow_call:
     inputs:
+      aws_role_arn:
+        required: true
+        type: string
+      aws_region:
+        required: true
+        type: string
       ecr_repository:
         required: true
         type: string
-    secrets:
-      AWS_ROLE_ARN:
-        required: true
-      AWS_REGION:
-        required: true
-
-permissions:
-  id-token: write
-  contents: read
+    outputs:
+      image_tag:
+        description: "Pushed image tag"
+        value: ${{ jobs.build-push-image.outputs.image_tag }}
+    secrets: inherit
 
 jobs:
-  build-push:
-    name: Build and Push Docker Image
+  build-push-image:
+    name: Build and Push Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.image-tag.outputs.tag }}
-    
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v3
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      
+          role-to-assume: ${{ inputs.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Generate Image Tag
-        id: image-tag
-        run: |
-          TAG="$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-      
-      - name: Build and Push Image
+
+      - name: Set Image Tag
+        id: set-tag
+        run: echo "tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
+      - name: Build, Tag, and Push Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          ECR_REPOSITORY: ${{ inputs.ecr_repository }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.tag }}
         run: |
-          docker build -t $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Output pushed image tag
+        run: echo "Image pushed: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.set-tag.outputs.tag }}"

@@ -12,43 +12,33 @@ on:
       terraform_version:
         required: true
         type: string
-    secrets:
-      AWS_ROLE_ARN:
-        required: true
-      AWS_REGION:
-        required: true
-
-permissions:
-  id-token: write
-  contents: read
+    secrets: inherit
 
 jobs:
-  deploy:
+  terraform-deploy:
+    name: Terraform Deploy
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - run: echo "Working directory is ./terraform"
-        working-directory: ./terraform
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Setup Terraform
+      - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
 
-      - name: Terraform Init
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ inputs.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Initialize Terraform
         run: terraform init
 
-      - name: Terraform Plan
+      - name: Plan Terraform
         run: terraform plan
 
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+      - name: Apply Terraform
         run: terraform apply -auto-approve
