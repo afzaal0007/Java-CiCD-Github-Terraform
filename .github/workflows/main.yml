@@ -26,6 +26,11 @@ jobs:
     name: Deploy Infrastructure
     uses: ./.github/workflows/infra-deploy.yml
     with:
+      aws_role_arn: ${{ inputs.aws_role_arn }}
+      aws_region: ${{ inputs.aws_region }}
+      terraform_version: ${{ secrets.TERRAFORM_VERSION }}
+     
+    inputs:
       aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
       aws_region: ${{ secrets.AWS_REGION }}
       terraform_version: ${{ env.TERRAFORM_VERSION }}
@@ -33,28 +38,14 @@ jobs:
   build-and-push:
     name: Build and Push Docker Image
     needs: deploy-infrastructure
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      image_tag: ${{ steps.build.outputs.image_tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Build and Push
-        id: build
-        uses: ./.github/workflows/build-push.yml
-        with:
-          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws_region: ${{ secrets.AWS_REGION }}
-          ecr_repository: ${{ env.ECR_REPOSITORY }}
+    uses: ./.github/workflows/build-push.yml
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    with:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      ecr_repository: ${{ env.ECR_REPOSITORY }}
 
   deploy-application:
     name: Deploy Application
