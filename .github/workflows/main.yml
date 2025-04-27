@@ -40,7 +40,7 @@ jobs:
 
       - name: Deploy Infrastructure
         id: terraform-deploy
-        uses: ./.github/workflows/infra-deploy.yml
+        run: ./.github/workflows/infra-deploy.yml
         with:
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
           aws_region: ${{ secrets.AWS_REGION }}
