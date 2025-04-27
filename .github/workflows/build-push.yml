@@ -3,12 +3,6 @@ name: Build and Push Docker Image
 on:
   workflow_call:
     inputs:
-      aws_role_arn:
-        required: true
-        type: string
-      aws_region:
-        required: true
-        type: string
       ecr_repository:
         required: true
         type: string
@@ -35,8 +29,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ inputs.aws_role_arn }}
-          aws-region: ${{ inputs.aws_region }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
       
       - name: Login to Amazon ECR
         id: login-ecr
