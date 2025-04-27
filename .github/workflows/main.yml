@@ -27,19 +27,20 @@ jobs:
   deploy-infrastructure:
     uses: ./.github/workflows/infra-deploy.yml
     with:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}  # Must be in GitHub Secrets
-      aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}  # Fallback to default
-      terraform_version: "1.5.0"  # Hardcoded or from vars
-    secrets: inherit
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}  # Use vars instead of inputs
+      aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      terraform_version: ${{ env.TERRAFORM_VERSION }}
+    secrets: inherit  # This ensures secrets are passed properly
 
   build-and-push:
     uses: ./.github/workflows/build-push.yml
     needs: deploy-infrastructure
     with:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
       aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
-      ecr_repository: "myapp"  # Hardcoded matching env.ECR_REPOSITORY
-    secrets: inherit
+      ecr_repository: ${{ env.ECR_REPOSITORY }}
+    secrets: inherit  # Ensure secrets are inherited
+
 
   deploy-application:
     name: Deploy Application
