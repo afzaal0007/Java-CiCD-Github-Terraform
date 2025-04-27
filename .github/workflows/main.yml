@@ -25,15 +25,13 @@ jobs:
   deploy-infrastructure:
     name: Deploy Infrastructure
     uses: ./.github/workflows/infra-deploy.yml
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
     with:
-      aws_role_arn: ${{ inputs.aws_role_arn }}
-      aws_region: ${{ inputs.aws_region }}
-      terraform_version: ${{ env.TERRAFORM_VERSION }}
-     
-    inputs:
       aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
       aws_region: ${{ secrets.AWS_REGION }}
-      terraform_version: ${{ env.TERRAFORM_VERSION }}
+      terraform_version: '1.5.0'
 
   build-and-push:
     name: Build and Push Docker Image
