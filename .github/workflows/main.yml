@@ -1,15 +1,15 @@
-name: CI/CD Pipeline
-
+name: |
+  CI-CD-Pipeline
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
-
+    branches:
+      - main
 concurrency:
   group: production
   cancel-in-progress: true
-
 env:
   ECR_REPOSITORY: myapp
   EKS_CLUSTER_NAME: my-cluster
@@ -31,7 +31,7 @@ jobs:
       - name: Verify Directory Structure
         run: ls -la .github/workflows && ls -la terraform
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.terraform
           key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
@@ -40,7 +40,7 @@ jobs:
 
       - name: Deploy Infrastructure
         id: terraform-deploy
-        run: ./.github/workflows/infra-deploy.yml
+        uses: ./.github/workflows/infra-deploy.yml  # Reference reusable workflow
         with:
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
           aws_region: ${{ secrets.AWS_REGION }}
@@ -57,7 +57,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -66,11 +66,11 @@ jobs:
 
       - name: Build and Push
         id: build
-        uses: ./.github/workflows/build-push.yml
-        with:
-          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws_region: ${{ secrets.AWS_REGION }}
-          ecr_repository: ${{ env.ECR_REPOSITORY }}
+        run: |
+          ./github/workflows/build-push.yml \
+          --aws_role_arn=${{ secrets.AWS_ROLE_ARN }} \
+          --aws_region=${{ secrets.AWS_REGION }} \
+          --ecr_repository=${{ env.ECR_REPOSITORY }}
 
   deploy-application:
     name: Deploy Application
@@ -85,7 +85,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.kube
@@ -96,13 +96,13 @@ jobs:
 
       - name: Deploy Application
         id: deploy
-        uses: ./.github/workflows/Deploy-Helm-Charts-to-EKS.yml
-        with:
-          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws_region: ${{ secrets.AWS_REGION }}
-          eks_cluster_name: ${{ env.EKS_CLUSTER_NAME }}
-          ecr_repository: ${{ env.ECR_REPOSITORY }}
-          image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          ./github/workflows/Deploy-Helm-Charts-to-EKS.yml \
+          --aws_role_arn=${{ secrets.AWS_ROLE_ARN }} \
+          --aws_region=${{ secrets.AWS_REGION }} \
+          --eks_cluster_name=${{ env.EKS_CLUSTER_NAME }} \
+          --ecr_repository=${{ env.ECR_REPOSITORY }} \
+          --image_tag=${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Health Check
         if: success()
