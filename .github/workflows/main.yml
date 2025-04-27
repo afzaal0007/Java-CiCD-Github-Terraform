@@ -42,11 +42,9 @@ jobs:
 
   deploy-application:
     name: Deploy Application
-    needs:
-      - build-and-push
-      - deploy-infrastructure
+    needs: [build-and-push, deploy-infrastructure]
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Increased from 7
+    timeout-minutes: 15
     environment:
       name: production
       url: ${{ env.PRODUCTION_URL }}
@@ -80,7 +78,6 @@ jobs:
         run: |
           echo "Performing health check..."
           # Add actual health check commands here
-          # curl -sSf ${{ env.PRODUCTION_URL }}/health || exit 1
 
       - name: Notify Deployment Status
         if: always()
@@ -96,7 +93,4 @@ jobs:
                 repo: context.repo.name,
                 body: message
               });
-            } else {
-              console.log(message);
-              // Alternative notification for non-PR triggers
             }

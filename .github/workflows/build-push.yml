@@ -12,18 +12,21 @@ on:
       ecr_repository:
         required: true
         type: string
-    outputs:
-      image_tag:
-        description: "Pushed image tag"
-        value: ${{ jobs.build-push-image.outputs.image_tag }}
-    secrets: inherit
-
+    secrets:
+      inherit:  # Fixed: Removed scalar value to match expected syntax
+permissions:
+  id-token: write  # Needed for OIDC auth
+  contents: read
 jobs:
   build-push-image:
     name: Build and Push Image
     runs-on: ubuntu-latest
+    environment: production  # Added for better tracking
+    timeout-minutes: 30      # Added timeout to prevent hanging
+    
     outputs:
       image_tag: ${{ steps.set-tag.outputs.tag }}
+      image_uri: ${{ steps.build-image.outputs.image_uri }}
 
     steps:
       - name: Checkout Repository
@@ -34,6 +37,7 @@ jobs:
         with:
           role-to-assume: ${{ inputs.aws_role_arn }}
           aws-region: ${{ inputs.aws_region }}
+          mask-aws-account-id: true  # Security best practice
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -41,16 +45,30 @@ jobs:
 
       - name: Set Image Tag
         id: set-tag
-        run: echo "tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+        run: |
+          # Use both timestamp and short SHA for better traceability
+          echo "tag=$(date +%Y%m%d%H%M%S)-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
       - name: Build, Tag, and Push Docker Image
+        id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ inputs.ecr_repository }}
           IMAGE_TAG: ${{ steps.set-tag.outputs.tag }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # Build with Docker BuildKit for better performance
+          DOCKER_BUILDKIT=1 docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --progress plain \
+            .
+          
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          # Output full image URI for downstream jobs
+          echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Output pushed image tag
-        run: echo "Image pushed: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.set-tag.outputs.tag }}"
+      - name: Verify Image Push
+        run: |
+          echo "Image successfully pushed to:"
+          echo "${{ steps.build-image.outputs.image_uri }}"
+          echo "Digest: $(docker inspect ${{ steps.build-image.outputs.image_uri }} --format='{{.RepoDigests}}')"
