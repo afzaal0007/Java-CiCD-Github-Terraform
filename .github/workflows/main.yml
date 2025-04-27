@@ -12,8 +12,7 @@ concurrency:
   group: production-${{ github.ref }}
   cancel-in-progress: true
 
-# Define variables here instead of env
-vars:
+env:
   ECR_REPOSITORY: myapp
   EKS_CLUSTER_NAME: my-cluster
   TERRAFORM_VERSION: 1.5.0
@@ -29,7 +28,7 @@ jobs:
     with:
       aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
       aws_region: ${{ vars.AWS_REGION }}
-      terraform_version: ${{ vars.TERRAFORM_VERSION }}  # Changed from env to vars
+      terraform_version: ${{ env.TERRAFORM_VERSION }}
     secrets: inherit
 
   build-and-push:
@@ -38,7 +37,7 @@ jobs:
     with:
       aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
       aws_region: ${{ vars.AWS_REGION }}
-      ecr_repository: ${{ vars.ECR_REPOSITORY }}  # Changed from env to vars
+      ecr_repository: ${{ env.ECR_REPOSITORY }}
     secrets: inherit
 
   deploy-application:
@@ -50,7 +49,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: production
-      url: ${{ vars.PRODUCTION_URL }}
+      url: ${{ env.PRODUCTION_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,8 +72,8 @@ jobs:
           .github/workflows/scripts/deploy.sh \
             "${{ vars.AWS_ROLE_ARN }}" \
             "${{ vars.AWS_REGION }}" \
-            "${{ vars.EKS_CLUSTER_NAME }}" \
-            "${{ vars.ECR_REPOSITORY }}" \
+            "${{ env.EKS_CLUSTER_NAME }}" \
+            "${{ env.ECR_REPOSITORY }}" \
             "${{ needs.build-and-push.outputs.image_tag }}" || exit 1
 
       - name: Health Check
