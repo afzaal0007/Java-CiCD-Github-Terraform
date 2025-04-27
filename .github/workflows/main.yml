@@ -12,6 +12,11 @@ concurrency:
   group: production-${{ github.ref }}
   cancel-in-progress: true
 
+# Define variables that need to be passed to reusable workflows
+defaults:
+  run:
+    shell: bash
+
 env:
   ECR_REPOSITORY: myapp
   EKS_CLUSTER_NAME: my-cluster
@@ -26,18 +31,18 @@ jobs:
   deploy-infrastructure:
     uses: ./.github/workflows/infra-deploy.yml
     with:
-      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
-      aws_region: ${{ vars.AWS_REGION }}
-      terraform_version: ${{ env.TERRAFORM_VERSION }}
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+      aws_region: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
+      terraform_version: "1.5.0"  # Hardcoded or use vars/secrets
     secrets: inherit
 
   build-and-push:
     uses: ./.github/workflows/build-push.yml
     needs: deploy-infrastructure
     with:
-      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
-      aws_region: ${{ vars.AWS_REGION }}
-      ecr_repository: ${{ env.ECR_REPOSITORY }}
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+      aws_region: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
+      ecr_repository: "myapp"  # Hardcoded or use vars/secrets
     secrets: inherit
 
   deploy-application:
@@ -67,14 +72,20 @@ jobs:
         run: test -f .github/workflows/scripts/deploy.sh || (echo "Deploy script not found" && exit 1)
 
       - name: Deploy Application to EKS
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
+          EKS_CLUSTER_NAME: ${{ env.EKS_CLUSTER_NAME }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
           chmod +x .github/workflows/scripts/deploy.sh
           .github/workflows/scripts/deploy.sh \
-            "${{ vars.AWS_ROLE_ARN }}" \
-            "${{ vars.AWS_REGION }}" \
-            "${{ env.EKS_CLUSTER_NAME }}" \
-            "${{ env.ECR_REPOSITORY }}" \
-            "${{ needs.build-and-push.outputs.image_tag }}" || exit 1
+            "$AWS_ROLE_ARN" \
+            "$AWS_REGION" \
+            "$EKS_CLUSTER_NAME" \
+            "$ECR_REPOSITORY" \
+            "$IMAGE_TAG" || exit 1
 
       - name: Health Check
         run: |
