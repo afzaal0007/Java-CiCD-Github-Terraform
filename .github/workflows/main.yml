@@ -12,6 +12,7 @@ concurrency:
   group: production-${{ github.ref }}
   cancel-in-progress: true
 
+# Define variables here instead of env
 env:
   ECR_REPOSITORY: myapp
   EKS_CLUSTER_NAME: my-cluster
@@ -26,23 +27,25 @@ jobs:
   deploy-infrastructure:
     uses: ./.github/workflows/infra-deploy.yml
     with:
-      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
-      aws_region: ${{ vars.AWS_REGION }}
-      terraform_version: ${{ env.TERRAFORM_VERSION }}
+      aws_role_arn: ${{ env.AWS_ROLE_ARN }}
+      aws_region: ${{ env.AWS_REGION }}
+      terraform_version: ${{ env.TERRAFORM_VERSION }}  # Changed from vars to env
     secrets: inherit
 
   build-and-push:
     uses: ./.github/workflows/build-push.yml
     needs: deploy-infrastructure
     with:
-      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
-      aws_region: ${{ vars.AWS_REGION }}
-      ecr_repository: ${{ env.ECR_REPOSITORY }}
+      aws_role_arn: ${{ env.AWS_ROLE_ARN }}
+      aws_region: ${{ env.AWS_REGION }}
+      ecr_repository: ${{ env.ECR_REPOSITORY }}  # Changed from vars to env
     secrets: inherit
 
   deploy-application:
     name: Deploy Application
-    needs: [build-and-push, deploy-infrastructure]
+    needs:
+      - build-and-push
+      - deploy-infrastructure
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -68,8 +71,8 @@ jobs:
         run: |
           chmod +x .github/workflows/scripts/deploy.sh
           .github/workflows/scripts/deploy.sh \
-            "${{ vars.AWS_ROLE_ARN }}" \
-            "${{ vars.AWS_REGION }}" \
+            "${{ env.AWS_ROLE_ARN }}" \
+            "${{ env.AWS_REGION }}" \
             "${{ env.EKS_CLUSTER_NAME }}" \
             "${{ env.ECR_REPOSITORY }}" \
             "${{ needs.build-and-push.outputs.image_tag }}" || exit 1
