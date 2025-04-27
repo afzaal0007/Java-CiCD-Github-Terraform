@@ -28,14 +28,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy Infrastructure
-        uses: ./.github/workflows/Deploy-Helm-Charts-to-EKS.yml
-        with:
-          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws_region: ${{ secrets.AWS_REGION }}
-          eks_cluster_name: ${{ env.EKS_CLUSTER_NAME }}
-          ecr_repository: ${{ env.ECR_REPOSITORY }}
-          image_tag: ${{ needs.build-push.outputs.image_tag }}
+     
       - name: Verify Directory Structure
         run: ls -la .github/workflows && ls -la terraform
       
@@ -60,26 +53,5 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: terraform apply -auto-approve
 
-      - name: Verify Directory Structure
-        run: ls -la .github/workflows && ls -la terraform
       
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ inputs.aws_role_arn }}
-          aws-region: ${{ inputs.aws_region }}
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform_version }}
-      
-      - name: Terraform Init
-        run: terraform init
-      
-      - name: Terraform Plan
-        run: terraform plan
-      
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: terraform apply -auto-approve
+

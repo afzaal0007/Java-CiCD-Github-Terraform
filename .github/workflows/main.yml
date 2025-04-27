@@ -1,5 +1,4 @@
-name: |
-  CI-CD-Pipeline
+name: CI-CD-Pipeline
 on:
   push:
     branches:
@@ -66,11 +65,11 @@ jobs:
 
       - name: Build and Push
         id: build
-        run: |
-          ./github/workflows/build-push.yml \
-          --aws_role_arn=${{ secrets.AWS_ROLE_ARN }} \
-          --aws_region=${{ secrets.AWS_REGION }} \
-          --ecr_repository=${{ env.ECR_REPOSITORY }}
+        uses: ./.github/workflows/build-push.yml  # Reference reusable workflow
+        with:
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          aws_region: ${{ secrets.AWS_REGION }}
+          ecr_repository: ${{ env.ECR_REPOSITORY }}
 
   deploy-application:
     name: Deploy Application
