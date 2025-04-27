@@ -28,7 +28,7 @@ jobs:
     with:
       aws_role_arn: ${{ inputs.aws_role_arn }}
       aws_region: ${{ inputs.aws_region }}
-      terraform_version: ${{ secrets.TERRAFORM_VERSION }}
+      terraform_version: ${{ env.TERRAFORM_VERSION }}
      
     inputs:
       aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
