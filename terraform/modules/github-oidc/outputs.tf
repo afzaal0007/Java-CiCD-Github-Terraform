@@ -1,15 +1,15 @@
-
+# outputs.tf
 output "github_actions_role_arn" {
-  description = "ARN of the GitHub Actions IAM role"
-  value       = aws_iam_role.github_actions_role.arn
+  description = "ARN of IAM role for GitHub Actions"
+  value       = aws_iam_role.github_actions.arn
 }
 
-output "github_actions_role_id" {
-  description = "ARN of the GitHub Actions IAM role id"
-  value       = aws_iam_role.github_actions_role.id
+output "github_actions_oidc_provider_arn" {
+  description = "ARN of GitHub Actions OIDC Provider"
+  value       = aws_iam_openid_connect_provider.github_actions.arn
 }
 
 output "github_actions_role_name" {
-  description = "ARN of the GitHub Actions IAM role"
-  value       = aws_iam_role.github_actions_role.name
+  description = "Name of IAM role for GitHub Actions"
+  value       = aws_iam_role.github_actions.name
 }

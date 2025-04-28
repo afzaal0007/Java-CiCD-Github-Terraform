@@ -1,21 +1,11 @@
-resource "aws_iam_openid_connect_provider" "github_oidc" {
-  url = "https://token.actions.githubusercontent.com"
 
-  client_id_list = [
-    "sts.amazonaws.com"
-  ]
-
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1"
-  ]
-}
 
 # Enable GitHub OIDC for secure authentication
 module "github_oidc" {
   source = "./modules/github-oidc"
-  github_organization    = "afzaal0007"
-  github_repository   = "Java-CiCD-Github-Terraform"
-  github_OIDC_provider_arn = aws_iam_openid_connect_provider.github_oidc.arn
+  github_org  = var.github_org
+  github_repo = var.github_repo
+ 
 }
 
 
