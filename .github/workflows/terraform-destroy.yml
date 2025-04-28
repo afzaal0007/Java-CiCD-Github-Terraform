@@ -21,7 +21,7 @@ permissions:
 
 env:
   TERRAFORM_VERSION: '1.5.0'
-  TF_WORKING_DIR: 'terraform'  # Changed from './terraform' to 'terraform'
+  TF_WORKING_DIR: 'terraform'
 
 jobs:
   terraform-destroy:
@@ -54,21 +54,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Terraform Init and Select Workspace
+      - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform init -no-color
-          terraform workspace select ${{ github.event.inputs.environment }} || \
-          terraform workspace new ${{ github.event.inputs.environment }}
+        run: terraform init -no-color
 
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-         # Check if state contains any resources
-         if terraform state list >/dev/null 2>&1; then
-         echo "Resources found in state - refreshing state and proceeding with destroy"
-         terraform refresh -no-color
-         terraform destroy -auto-approve -no-color
-         else
-         echo "No resources in state - nothing to destroy"
-         fi
+          # Check if state contains any resources
+          if terraform state list >/dev/null 2>&1; then
+            echo "Resources found in state - refreshing state and proceeding with destroy"
+            terraform refresh -no-color
+            terraform destroy -auto-approve -no-color
+          else
+            echo "No resources in state - nothing to destroy"
+          fi
