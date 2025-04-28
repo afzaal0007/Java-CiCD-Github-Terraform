@@ -58,6 +58,14 @@ jobs:
         echo "Capturing Terraform outputs..."
         terraform output -json > terraform-output.json
 
+    # Download artifacts (if needed)
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: terraform-artifacts
+        path: terraform/artifacts
+
+    # Upload Terraform Output
     - name: Upload Terraform Output
       if: success()
       uses: actions/upload-artifact@v3
@@ -65,3 +73,10 @@ jobs:
         name: terraform-output
         path: terraform/terraform-output.json
         retention-days: 5
+
+    # Optional: Clean up artifacts
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -f terraform-output.json
+        rm -rf .terraform
