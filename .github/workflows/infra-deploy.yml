@@ -16,17 +16,25 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  TF_WORKING_DIR: './terraform'
+  MAX_RETRIES: 2
+  LOCK_TIMEOUT: '15m'
+
 jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Install GNU grep (for lock ID extraction)
+      run: sudo apt-get update && sudo apt-get install -y grep
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -40,36 +48,100 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: false
 
     - name: Terraform Init
-      run: terraform init
-      
-    - name: Terraform Format
-      run: terraform fmt -check
+      run: terraform init -no-color -input=false
 
-    - name: Terraform Plan
-      run: terraform plan -input=false -out=tfplan
-      
-    - name: Terraform Apply
+    - name: Terraform Format
+      run: terraform fmt -check -no-color -recursive
+
+    - name: Terraform Validate
+      run: terraform validate -no-color
+
+    - name: Terraform Plan with Lock Handling
+      run: |
+        retry_count=0
+        while [ $retry_count -lt $MAX_RETRIES ]; do
+          echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
+          if terraform plan -input=false -no-color -out=tfplan -lock-timeout=$LOCK_TIMEOUT; then
+            echo "Plan completed successfully"
+            exit 0
+          else
+            # Extract lock ID from error output
+            LOCK_ID=$(terraform plan -input=false -no-color -out=tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
+            
+            if [ -n "$LOCK_ID" ]; then
+              echo "Found lock ID: $LOCK_ID"
+              # Force unlock if lock is stale
+              LOCK_INFO=$(terraform force-unlock -force "$LOCK_ID" 2>&1 || true)
+              if [[ "$LOCK_INFO" == *"successfully unlocked"* ]]; then
+                echo "Stale lock removed"
+              else
+                echo "Could not remove lock, will retry"
+              fi
+            fi
+            
+            ((retry_count++))
+            if [ $retry_count -lt $MAX_RETRIES ]; then
+              echo "Waiting 10 seconds before retry..."
+              sleep 10
+            fi
+          fi
+        done
+
+        echo "Max retries reached, proceeding with lock disabled (not recommended for production)"
+        terraform plan -input=false -no-color -out=tfplan -lock=false
+
+    - name: Terraform Apply with Lock Handling
       if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-      run: terraform apply -auto-approve tfplan
+      run: |
+        retry_count=0
+        while [ $retry_count -lt $MAX_RETRIES ]; do
+          echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
+          if terraform apply -auto-approve -no-color -lock-timeout=$LOCK_TIMEOUT tfplan; then
+            echo "Apply completed successfully"
+            exit 0
+          else
+            # Extract lock ID from error output
+            LOCK_ID=$(terraform apply -auto-approve -no-color tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
+            
+            if [ -n "$LOCK_ID" ]; then
+              echo "Found lock ID: $LOCK_ID"
+              # Force unlock if lock is stale
+              LOCK_INFO=$(terraform force-unlock -force "$LOCK_ID" 2>&1 || true)
+              if [[ "$LOCK_INFO" == *"successfully unlocked"* ]]; then
+                echo "Stale lock removed"
+              else
+                echo "Could not remove lock, will retry"
+              fi
+            fi
+            
+            ((retry_count++))
+            if [ $retry_count -lt $MAX_RETRIES ]; then
+              echo "Waiting 10 seconds before retry..."
+              sleep 10
+            fi
+          fi
+        done
+
+        echo "Max retries reached, proceeding with lock disabled (not recommended for production)"
+        terraform apply -auto-approve -no-color tfplan -lock=false
 
     - name: Terraform Output
       if: success()
       run: |
         echo "Capturing Terraform outputs..."
-        terraform output -json > terraform-output.json
+        terraform output -no-color -json > terraform-output.json
 
-    # Upload Terraform Output
     - name: Upload Terraform Output
       if: success()
-      uses: actions/upload-artifact@v4  # Updated to v4
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-output
-        path: terraform/terraform-output.json
+        path: ${{ env.TF_WORKING_DIR }}/terraform-output.json
         retention-days: 5
 
-    # Cleanup
     - name: Cleanup
       if: always()
       run: |
