@@ -64,8 +64,15 @@ jobs:
           # Check if state contains any resources
           if terraform state list >/dev/null 2>&1; then
             echo "Resources found in state - refreshing state and proceeding with destroy"
-            terraform refresh -no-color
-            terraform destroy -auto-approve -no-color
+            
+            # First attempt with lock
+            if terraform refresh -no-color && terraform destroy -auto-approve -no-color; then
+              echo "Destroy completed successfully"
+            else
+              echo "First attempt failed, retrying with lock disabled"
+              terraform refresh -no-color -lock=false
+              terraform destroy -auto-approve -no-color -lock=false
+            fi
           else
             echo "No resources in state - nothing to destroy"
           fi
