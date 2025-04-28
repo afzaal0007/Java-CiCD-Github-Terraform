@@ -13,7 +13,7 @@ variable "vpc_cidr" {
 variable "azs" {
   description = "Availability zones"
   type        = list(string)
-  default     = ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 variable "private_subnets" {
@@ -79,7 +79,7 @@ variable "state_bucket_arn" {
 variable "lock_table_arn" {
   description = "ARN of the DynamoDB table for Terraform state locking"
   type        = string
-  default     = "arn:aws:dynamodb:ap-south-1:099199746132:table/terraform-locks"
+  default     = "arn:aws:dynamodb:us-east-1:099199746132:table/terraform-locks"
 }
 
 
@@ -92,7 +92,7 @@ variable "dynamodb_table_name" {
 variable "region" {
   description = "AWS region"
   type        = string
-  default     = "ap-south-1"
+  default     = "us-east-1"
 }
 
 variable "github_org" {

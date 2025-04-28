@@ -1,12 +1,12 @@
 
 
 # Enable GitHub OIDC for secure authentication
-module "github_oidc" {
-  source      = "./modules/github-oidc"
-  github_org  = var.github_org
-  github_repo = var.github_repo
+# module "github_oidc" {
+#   source      = "./modules/github-oidc"
+#   github_org  = var.github_org
+#   github_repo = var.github_repo
 
-}
+# }
 
 
 # VPC Configuration
@@ -59,7 +59,7 @@ module "eks" {
 
   cluster_enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
-  tags = local.tags
+  # tags = local.tags
 }
 
 # ECR Repository
@@ -68,5 +68,6 @@ module "ecr" {
 
   repository_name = "afzaal-ecr-repo"
   tags            = local.tags
-  scan_on_push    = true
+
+  scan_on_push = true
 }

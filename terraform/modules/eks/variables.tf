@@ -6,7 +6,7 @@ variable "cluster_name" {
 variable "cluster_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.26"
+  default     = "1.31"
 }
 
 variable "vpc_id" {
@@ -46,57 +46,11 @@ variable "aws_auth_roles" {
   type        = list(string)
   default     = []
 }
-variable "repository_names" {
+
+variable "repository_name" {
   description = "List of ECR repository names"
-  type        = list(string)
-  default     = []
-}
-variable "trusted_entities" {
-  description = "List of trusted entities for IAM roles"
-  type        = list(string)
-  default     = []
-}
-variable "github_org" {
-  description = "GitHub organization name"
   type        = string
-  default     = "afzaal0007"
-}
-variable "github_repo" {
-  description = "GitHub repository name"
-  type        = string
-  default     = "Java-CiCD-Github-Terraform"
-}
-variable "github_branch" {
-  description = "GitHub branch name"
-  type        = string
-  default     = "main"
-}
-variable "github_token" {
-  description = "GitHub token for accessing the repository"
-  type        = string
-  default     = ""
-}
-variable "github_token_secret" {
-  description = "GitHub token secret for accessing the repository"
-  type        = string
-  default     = ""
-}
-variable "github_token_id" {
-  description = "GitHub token ID for accessing the repository"
-  type        = string
-  default     = ""
-}
-
-variable "tags" {
-  description = "Additional tags for all resources"
-  type        = map(string)
-  default     = {}
-}
-
-variable "env" {
-  description = "Environment name"
-  type        = string
-  default     = "dev"
+  default     = "afzaal-ecr-repo"
 }
 
 variable "eks_version" {
@@ -131,3 +85,9 @@ variable "node_group_instance_type" {
   default     = "t3.medium"
 }
 
+
+variable "env" {
+  description = "Environment name (e.g., dev, staging, prod)"
+  type        = string
+  default     = "dev" # You can change this default value as needed
+}

@@ -1,6 +1,6 @@
 provider "aws" {
-  alias  = "github_oidc"
-  region = local.region # This is the region where the GitHub OIDC provider will be created
+
+  region = "us-east-1" # This is the region where the GitHub OIDC provider will be created
 }
 
 terraform {

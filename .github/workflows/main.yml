@@ -46,7 +46,7 @@ jobs:
       - build-and-push
       - terraform-deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     environment:
       name: production
       url: ${{ env.PRODUCTION_URL }}

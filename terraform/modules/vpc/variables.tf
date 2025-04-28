@@ -27,12 +27,12 @@ variable "eks_name" {
 variable "zone1" {
   description = "Availability zone 1"
   type        = string
-  default     = "ap-south-1a"
+  default     = "us-east-1a"
 }
 variable "zone2" {
   description = "Availability zone 2"
   type        = string
-  default     = "ap-south-1b"
+  default     = "us-east-1b"
 }
 
 # variable for private subnet 1 cidr
