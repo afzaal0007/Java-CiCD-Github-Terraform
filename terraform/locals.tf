@@ -1,8 +1,8 @@
 locals {
   env                      = "dev"
-  region                   = "ap-south-1"
-  zone1                    = "ap-south-1a"
-  zone2                    = "ap-south-1b"
+  region                   = "us-east-1"
+  zone1                    = "us-east-1a"
+  zone2                    = "us-east-1b"
   cluster_name             = "myapp-eks"
   eks_version              = "1.31"
   vpc_cidr                 = "10.0.0.0/16"
