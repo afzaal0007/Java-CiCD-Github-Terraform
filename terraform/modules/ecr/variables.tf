@@ -7,7 +7,7 @@ variable "scan_on_push" {
 variable "repository_name" {
   description = "The name of the ECR repository"
   type        = string
-  default     = "afzaal-ecr-repo"  # Replace with your desired repository name
+  default     = "afzaal-ecr-repo"  # Replace with your repository name
 }
 
 output "lifecycle_policy_text" {
