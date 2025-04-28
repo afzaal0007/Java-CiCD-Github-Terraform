@@ -63,4 +63,11 @@ jobs:
 
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform destroy -auto-approve -no-color
+        run: |
+         # Check if state contains any resources
+         if terraform state list >/dev/null 2>&1; then
+         echo "Resources found in state - refreshing state and proceeding with destroy"
+         terraform refresh -no-color
+         terraform destroy -auto-approve -no-color
+         else
+         echo "No resources in state - nothing to destroy
