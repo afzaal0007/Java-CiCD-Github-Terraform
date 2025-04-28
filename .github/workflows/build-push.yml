@@ -3,17 +3,15 @@ name: Build and Push Docker Image
 on:
   workflow_call:
     inputs:
-      aws_role_arn:
-        required: true
-        type: string
-      aws_region:
-        required: true
-        type: string
       ecr_repository:
         required: true
         type: string
     secrets:
-      inherit:  # Fixed: Removed scalar value to match expected syntax
+      AWS_ROLE_ARN:
+        required: true
+      AWS_REGION:
+        required: true
+
 permissions:
   id-token: write  # Needed for OIDC auth
   contents: read

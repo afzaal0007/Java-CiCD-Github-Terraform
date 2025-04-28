@@ -12,6 +12,7 @@ concurrency:
   group: production-${{ github.ref }}
   cancel-in-progress: true
 
+# Define environment variables
 env:
   ECR_REPOSITORY: afzaal-ecr-repo
   EKS_CLUSTER_NAME: my-cluster
@@ -25,18 +26,18 @@ permissions:
 jobs:
   terraform-deploy:
     name: Deploy Infrastructure
-    uses: ./.github/workflows/infra-deploy.yml    # Removed @main
+    uses: ./.github/workflows/infra-deploy.yml
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
     with:
-      terraform_version: ${{ env.TERRAFORM_VERSION }}
+      terraform_version: '1.5.0'    # Directly specify the version
 
   build-and-push:
     needs: terraform-deploy
-    uses: ./.github/workflows/build-push.yml    # Removed @main
+    uses: ./.github/workflows/build-push.yml
     with:
-      ecr_repository: ${{ env.ECR_REPOSITORY }}
+      ecr_repository: 'afzaal-ecr-repo'    # Directly specify the repository name
     secrets: inherit
 
   deploy-application:
