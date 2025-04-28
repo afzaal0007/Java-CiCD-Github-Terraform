@@ -70,4 +70,5 @@ jobs:
          terraform refresh -no-color
          terraform destroy -auto-approve -no-color
          else
-         echo "No resources in state - nothing to destroy
+         echo "No resources in state - nothing to destroy"
+         fi
