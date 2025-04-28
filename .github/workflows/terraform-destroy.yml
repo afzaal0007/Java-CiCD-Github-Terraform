@@ -36,9 +36,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
       - name: Verify Terraform directory exists
         run: |
           if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
@@ -65,42 +62,35 @@ jobs:
       - name: Detach IAM Policies
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          # Get list of all IAM policies in state with their full attributes
+          # Get list of all IAM policies in state
           terraform state list | grep 'aws_iam_policy\.' | while read -r POLICY; do
             echo "Processing $POLICY"
             
-            # Get full policy attributes including ARN
-            POLICY_JSON=$(terraform state show -json "$POLICY" | jq -r '.values')
+            # Get policy ARN (compatible with all Terraform versions)
+            ARN=$(terraform state show "$POLICY" | grep -m 1 'arn:' | awk '{print $3}' | tr -d '"')
             
-            if [ -n "$POLICY_JSON" ]; then
-              ARN=$(echo "$POLICY_JSON" | jq -r '.arn')
-              NAME=$(echo "$POLICY_JSON" | jq -r '.name')
+            if [ -n "$ARN" ]; then
+              echo "Detaching policy with ARN: $ARN"
               
-              if [ -n "$ARN" ] && [ "$ARN" != "null" ]; then
-                echo "Detaching policy: $NAME ($ARN)"
-                
-                # Detach from roles
-                ROLES=$(aws iam list-entities-for-policy --policy-arn "$ARN" --query 'PolicyRoles[].RoleName' --output text 2>/dev/null || true)
-                if [ -n "$ROLES" ]; then
-                  for ROLE in $ROLES; do
-                    echo "Detaching from role: $ROLE"
-                    aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$ARN" || true
-                  done
-                fi
-                
-                # Detach from users
-                USERS=$(aws iam list-entities-for-policy --policy-arn "$ARN" --query 'PolicyUsers[].UserName' --output text 2>/dev/null || true)
-                if [ -n "$USERS" ]; then
-                  for USER in $USERS; do
-                    echo "Detaching from user: $USER"
-                    aws iam detach-user-policy --user-name "$USER" --policy-arn "$ARN" || true
-                  done
-                fi
-              else
-                echo "Could not extract ARN for policy: $POLICY"
+              # Detach from roles
+              ROLES=$(aws iam list-entities-for-policy --policy-arn "$ARN" --query 'PolicyRoles[].RoleName' --output text 2>/dev/null || true)
+              if [ -n "$ROLES" ]; then
+                for ROLE in $ROLES; do
+                  echo "Detaching from role: $ROLE"
+                  aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$ARN" || true
+                done
+              fi
+              
+              # Detach from users
+              USERS=$(aws iam list-entities-for-policy --policy-arn "$ARN" --query 'PolicyUsers[].UserName' --output text 2>/dev/null || true)
+              if [ -n "$USERS" ]; then
+                for USER in $USERS; do
+                  echo "Detaching from user: $USER"
+                  aws iam detach-user-policy --user-name "$USER" --policy-arn "$ARN" || true
+                done
               fi
             else
-              echo "Could not get state for policy: $POLICY"
+              echo "Could not extract ARN for policy: $POLICY"
             fi
           done
 
