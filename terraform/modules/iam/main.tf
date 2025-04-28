@@ -21,11 +21,11 @@ resource "aws_iam_role" "eks_admin" {
 resource "aws_iam_policy" "eks_admin" {
   name        = "eks-admin-policy"
   description = "IAM policy for EKS admin role"
-  policy      = jsonencode({
+  policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect   = "Allow",
-      Action   = [
+      Effect = "Allow",
+      Action = [
         "eks:DescribeCluster",
         "eks:ListNodegroups",
         "eks:AccessKubernetesApi",
@@ -39,11 +39,11 @@ resource "aws_iam_policy" "eks_admin" {
 resource "aws_iam_policy" "eks_admin_worker" {
   name        = "eks-admin-worker-policy"
   description = "IAM policy for EKS worker nodes"
-  policy      = jsonencode({
+  policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect   = "Allow",
-      Action   = [
+      Effect = "Allow",
+      Action = [
         "ec2:DescribeInstances",
         "autoscaling:DescribeAutoScalingGroups"
       ],
@@ -55,11 +55,11 @@ resource "aws_iam_policy" "eks_admin_worker" {
 resource "aws_iam_policy" "eks_admin_cni" {
   name        = "eks-admin-cni-policy"
   description = "IAM policy for Amazon VPC CNI plugin"
-  policy      = jsonencode({
+  policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect   = "Allow",
-      Action   = [
+      Effect = "Allow",
+      Action = [
         "ec2:DescribeNetworkInterfaces",
         "ec2:AttachNetworkInterface"
       ],
@@ -71,11 +71,11 @@ resource "aws_iam_policy" "eks_admin_cni" {
 resource "aws_iam_policy" "eks_admin_ecr" {
   name        = "eks-admin-ecr-policy"
   description = "IAM policy for ECR access"
-  policy      = jsonencode({
+  policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect   = "Allow",
-      Action   = [
+      Effect = "Allow",
+      Action = [
         "ecr:GetAuthorizationToken",
         "ecr:BatchCheckLayerAvailability",
         "ecr:GetDownloadUrlForLayer",

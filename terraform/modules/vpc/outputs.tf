@@ -5,7 +5,7 @@ output "vpc_id" {
 
 output "private_subnet1_id" {
   description = "ID of the first private subnet"
-  value       = aws_subnet.private-zone1-subnet.id  
+  value       = aws_subnet.private-zone1-subnet.id
 }
 
 output "private_subnet2_id" {

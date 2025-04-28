@@ -21,7 +21,7 @@ variable "eks_name" {
 #   description = "EKS cluster version"
 #   type        = string
 #   default     = "1.31"
-  
+
 # }
 
 variable "zone1" {

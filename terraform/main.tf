@@ -2,10 +2,10 @@
 
 # Enable GitHub OIDC for secure authentication
 module "github_oidc" {
-  source = "./modules/github-oidc"
+  source      = "./modules/github-oidc"
   github_org  = var.github_org
   github_repo = var.github_repo
- 
+
 }
 
 
@@ -67,6 +67,6 @@ module "ecr" {
   source = "./modules/ecr"
 
   repository_name = "afzaal-ecr-repo"
-  tags             = local.tags
-  scan_on_push     = true
+  tags            = local.tags
+  scan_on_push    = true
 }

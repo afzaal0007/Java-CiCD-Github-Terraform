@@ -117,7 +117,7 @@ variable "state_bucket_arn" {
   type        = string
   default     = "arn:aws:s3:::myapp-tf-state-099199746132"
 }
-  
+
 variable "lock_table_arn" {
   description = "ARN of the DynamoDB table for Terraform state locking"
   type        = string
