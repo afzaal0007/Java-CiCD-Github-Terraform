@@ -21,6 +21,7 @@ permissions:
 
 env:
   TERRAFORM_VERSION: '1.5.0'
+  TF_WORKING_DIR: './terraform'  # Added working directory variable
 
 jobs:
   terraform-destroy:
@@ -28,7 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     
-    # Only proceed if confirmation equals "destroy"
     if: github.event.inputs.confirmation == 'destroy'
     
     steps:
@@ -46,37 +46,13 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Terraform Init
+      - name: Terraform Init and Select Workspace
+        working-directory: ${{ env.TF_WORKING_DIR }}  # Set working directory
         run: |
           terraform init
-
-      - name: Terraform Workspace
-        run: |
           terraform workspace select ${{ github.event.inputs.environment }} || terraform workspace new ${{ github.event.inputs.environment }}
 
-      - name: Terraform Destroy Plan
-        run: |
-          terraform plan -destroy -out=destroy.tfplan
-        
       - name: Terraform Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}  # Set working directory
         run: |
-          terraform apply -auto-approve destroy.tfplan
-
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -f destroy.tfplan
-
-      - name: Notify Destroy Status
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const status = '${{ job.status }}';
-            const message = `Infrastructure destruction for environment ${{ github.event.inputs.environment }} completed with status: ${status}`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.name,
-              body: message
-            });
+          terraform destroy -auto-approve
