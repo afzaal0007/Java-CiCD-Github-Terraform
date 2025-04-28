@@ -1,4 +1,4 @@
-name: Terraform Destroy Infrastructure
+name: Terraform Destroy Infrastructure # Destroy Infrastructure
 
 on:
   workflow_dispatch:
