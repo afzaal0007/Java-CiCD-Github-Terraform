@@ -1,41 +1,34 @@
 resource "aws_ecr_repository" "this" {
-  for_each = toset(var.repository_names)
-
-  name                 = each.key
-  image_tag_mutability = var.image_tag_mutability
+  name = var.repository_name
 
   image_scanning_configuration {
     scan_on_push = var.scan_on_push
   }
 
   encryption_configuration {
-    encryption_type = var.encryption_type
-    kms_key        = var.kms_key_arn
+    encryption_type = "AES256"
   }
-# encryption_configuration {
-#   encryption_type = var.encryption_type
-#   kms_key_id      = var.kms_key_arn  # Corrected from kms_key -> kms_key_id
-# }
 
-  tags = merge(var.tags, { Name = each.key })
+  tags = var.tags
 }
 
 resource "aws_ecr_lifecycle_policy" "this" {
-  for_each  = aws_ecr_repository.this
-  repository = each.value.name  # Correct reference
-  policy     = jsonencode({
-    rules = [{
-      rulePriority = 1,
-      description  = "Expire old tagged images"
-      selection = {
-        tagStatus     = "tagged"
-        tagPrefixList = ["v"]
-        countType     = "imageCountMoreThan"
-        countNumber   = 5
+  repository = aws_ecr_repository.this.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep only the last 10 images"
+        selection = {
+          tagStatus     = "any"
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = {
+          type = "expire"
+        }
       }
-      action = {
-        type = "expire"
-      }
-    }]
+    ]
   })
 }

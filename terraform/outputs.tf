@@ -19,8 +19,8 @@ output "eks_admin_role_arn" {
 }
 
 output "ecr_repository_urls" {
-  description = "Map of repository names to repository URLs"
-  value       = module.ecr.repository_urls
+  description = "repository names to repository URLs"
+  value       = module.ecr.repository_url
 }
 
 # output "github_actions_role_arn" {

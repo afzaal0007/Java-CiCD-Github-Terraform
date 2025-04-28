@@ -1,40 +1,23 @@
+resource "aws_iam_openid_connect_provider" "github_oidc" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1"
+  ]
+}
+
 # Enable GitHub OIDC for secure authentication
 module "github_oidc" {
   source = "./modules/github-oidc"
-
-  github_org    = "afzaal0007"
-  github_repo   = "Java-CiCD-Github-Terraform"
-  cluster_name  = var.cluster_name
-  tags         = local.tags
-  state_bucket_arn = var.state_bucket_arn
-  lock_table_arn   = var.lock_table_arn
+  github_organization    = "afzaal0007"
+  github_repository   = "Java-CiCD-Github-Terraform"
+  github_OIDC_provider_arn = aws_iam_openid_connect_provider.github_oidc.arn
 }
 
-
-data "aws_iam_openid_connect_provider" "github" {
-  arn = "arn:aws:iam::099199746132:oidc-provider/token.actions.githubusercontent.com"
-}
-
-
-resource "aws_iam_role" "github_actions_role" {
-  name = "GitHubActionsRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Federated = "arn:aws:iam::099199746132:oidc-provider/token.actions.githubusercontent.com"
-      },
-      Action = "sts:AssumeRoleWithWebIdentity",
-      Condition = {
-        StringEquals = {
-          "token.actions.githubusercontent.com:sub" = "repo:your-org/your-repo:ref:refs/heads/main"
-        }
-      }
-    }]
-  })
-}
 
 # VPC Configuration
 module "vpc" {
@@ -93,26 +76,7 @@ module "eks" {
 module "ecr" {
   source = "./modules/ecr"
 
-  repository_names = ["myapp"]
+  repository_name = "afzaal-ecr-repo"
   tags             = local.tags
   scan_on_push     = true
-
-  lifecycle_rules = [
-    {
-      rulePriority = 1
-      description  = "Keep last 30 production images"
-      tagStatus    = "tagged"
-      # tagPrefixes  = ["prod-"]
-      countType   = "imageCountMoreThan"
-      countNumber = 30
-    },
-    {
-      rulePriority = 2
-      description  = "Keep last 10 development images"
-      tagStatus    = "tagged"
-      # tagPrefixes  = ["dev-"]
-      countType   = "imageCountMoreThan"
-      countNumber = 10
-    }
-  ]
 }
