@@ -18,6 +18,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  actions: write  # Needed for policy detachment
 
 env:
   TERRAFORM_VERSION: '1.5.0'
@@ -39,7 +40,7 @@ jobs:
         run: |
           if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
             echo "::error::Terraform directory '${{ env.TF_WORKING_DIR }}' not found"
-            ls -la  # Debug directory contents
+            ls -la
             exit 1
           fi
 
@@ -58,19 +59,56 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -no-color
 
+      - name: Detach IAM Policies
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          # Get list of all IAM policies in state
+          POLICIES=$(terraform state list | grep 'aws_iam_policy\.')
+          
+          if [ -n "$POLICIES" ]; then
+            echo "Found IAM policies in state:"
+            echo "$POLICIES"
+            
+            # Detach all policy attachments first
+            for POLICY in $POLICIES; do
+              echo "Processing $POLICY"
+              
+              # Get policy ARN
+              ARN=$(terraform state show "$POLICY" | grep 'arn:' | head -1 | awk '{print $3}')
+              
+              if [ -n "$ARN" ]; then
+                echo "Detaching policy $ARN"
+                
+                # Detach from roles
+                ROLES=$(aws iam list-entities-for-policy --policy-arn "$ARN" --query 'PolicyRoles[].RoleName' --output text)
+                for ROLE in $ROLES; do
+                  echo "Detaching from role $ROLE"
+                  aws iam detach-role-policy --role-name "$ROLE" --policy-arn "$ARN" || true
+                done
+                
+                # Detach from users
+                USERS=$(aws iam list-entities-for-policy --policy-arn "$ARN" --query 'PolicyUsers[].UserName' --output text)
+                for USER in $USERS; do
+                  echo "Detaching from user $USER"
+                  aws iam detach-user-policy --user-name "$USER" --policy-arn "$ARN" || true
+                done
+              fi
+            done
+          else
+            echo "No IAM policies found in state"
+          fi
+
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          # Check if state contains any resources
           if terraform state list >/dev/null 2>&1; then
-            echo "Resources found in state - refreshing state and proceeding with destroy"
+            echo "Resources found - proceeding with destroy"
             
             # First attempt with lock
-            if terraform refresh -no-color && terraform destroy -auto-approve -no-color; then
+            if terraform destroy -auto-approve -no-color; then
               echo "Destroy completed successfully"
             else
               echo "First attempt failed, retrying with lock disabled"
-              terraform refresh -no-color -lock=false
               terraform destroy -auto-approve -no-color -lock=false
             fi
           else
