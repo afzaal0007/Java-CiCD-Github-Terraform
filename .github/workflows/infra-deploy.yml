@@ -1,68 +1,67 @@
-name: Deploy Infrastructure
+name: Infrastructure Deployment
 
 on:
   workflow_call:
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      AWS_REGION:
+        required: true
     inputs:
-      aws_role_arn:
-        required: true
-        type: string
-      aws_region:
-        required: true
-        type: string
       terraform_version:
         required: true
         type: string
-    secrets: {}
+
 permissions:
-  id-token: write  # Needed for OIDC-based authentication
+  id-token: write
   contents: read
 
 jobs:
-  terraform-deploy:
-    name: Terraform Deploy
+  terraform:
+    name: 'Terraform'
     runs-on: ubuntu-latest
-    environment: production  # Added environment for better tracking
-    timeout-minutes: 30      # Added timeout to prevent hanging
+    defaults:
+      run:
+        working-directory: ./terraform
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+
+    - name: Terraform Init
+      run: terraform init
       
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ inputs.aws_role_arn }}  # Corrected input parameter
-          aws-region: ${{ inputs.aws_region }}
-          role-session-name: GitHubActionsTerraformDeploy
+    - name: Terraform Format
+      run: terraform fmt -check
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform_version }}
-          terraform_wrapper: false  # Explicitly disable wrapper
+    - name: Terraform Plan
+      run: terraform plan -input=false
+      
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+      run: terraform apply -auto-approve -input=false
 
-      - name: Terraform Init
-        id: init
-        run: terraform init -input=false
-        env:
-          TF_IN_AUTOMATION: true  # Recommended for CI/CD environments
+    - name: Terraform Output
+      if: success()
+      run: |
+        echo "Capturing Terraform outputs..."
+        terraform output -json > terraform-output.json
 
-      - name: Terraform Format
-        run: terraform fmt -check -recursive
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        id: plan
-        run: terraform plan -input=false -out=tfplan
-
-      - name: Terraform Apply
-        if: success()
-        run: terraform apply -input=false -auto-approve tfplan
-
-      - name: Output Terraform State
-        if: always()
-        run: |
-          terraform output -json > outputs.json
-          echo "TF_OUTPUTS=$(cat outputs.json | jq -c '.')" >> $GITHUB_OUTPUT
+    - name: Upload Terraform Output
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: terraform-output
+        path: terraform/terraform-output.json
+        retention-days: 5

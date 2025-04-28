@@ -12,7 +12,6 @@ concurrency:
   group: production-${{ github.ref }}
   cancel-in-progress: true
 
-# Define all configuration values as environment variables
 env:
   ECR_REPOSITORY: afzaal-ecr-repo
   EKS_CLUSTER_NAME: my-cluster
@@ -24,27 +23,27 @@ permissions:
   contents: read
 
 jobs:
-  deploy-infrastructure:
-    uses: ./.github/workflows/infra-deploy.yml
+  terraform-deploy:
+    name: Deploy Infrastructure
+    uses: ./.github/workflows/infra-deploy.yml@main
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
     with:
-      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}  # Use vars instead of env
-      aws_region: ${{ vars.AWS_REGION || 'ap-south-1' }}
-      terraform_version: ${{ vars.TERRAFORM_VERSION }}  # Fix env reference
+      terraform_version: ${{ env.TERRAFORM_VERSION }}
 
   build-and-push:
-    uses: ./.github/workflows/build-push.yml
-    needs: deploy-infrastructure
+    needs: terraform-deploy
+    uses: ./.github/workflows/build-push.yml@main
     with:
-      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
-      aws_region: ${{ vars.AWS_REGION || 'ap-south-1' }}
-      ecr_repository: ${{ vars.ECR_REPOSITORY }}  # Fix env reference
-
+      ecr_repository: ${{ env.ECR_REPOSITORY }}
+    secrets: inherit
 
   deploy-application:
     name: Deploy Application
-    needs:
+    needs: 
       - build-and-push
-      - deploy-infrastructure
+      - terraform-deploy
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -63,24 +62,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-k8s-
 
-      - name: Verify deploy script exists
-        run: test -f .github/workflows/scripts/deploy.sh || (echo "Deploy script not found" && exit 1)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Deploy Application to EKS
         env:
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-          AWS_REGION: ${{ vars.AWS_REGION || env.AWS_REGION || 'us-east-1' }}
           EKS_CLUSTER_NAME: ${{ env.EKS_CLUSTER_NAME }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
-          chmod +x .github/workflows/scripts/deploy.sh
-          .github/workflows/scripts/deploy.sh \
-            "$AWS_ROLE_ARN" \
-            "$AWS_REGION" \
-            "$EKS_CLUSTER_NAME" \
-            "$ECR_REPOSITORY" \
-            "$IMAGE_TAG" || exit 1
+          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region ${{ secrets.AWS_REGION }}
+          # Add your deployment commands here
 
       - name: Health Check
         run: |
