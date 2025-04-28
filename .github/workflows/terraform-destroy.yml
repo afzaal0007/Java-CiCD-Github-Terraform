@@ -21,7 +21,7 @@ permissions:
 
 env:
   TERRAFORM_VERSION: '1.5.0'
-  TF_WORKING_DIR: './terraform'  # Added working directory variable
+  TF_WORKING_DIR: 'terraform'  # Changed from './terraform' to 'terraform'
 
 jobs:
   terraform-destroy:
@@ -35,6 +35,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Verify Terraform directory exists
+        run: |
+          if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
+            echo "::error::Terraform directory '${{ env.TF_WORKING_DIR }}' not found"
+            ls -la  # Debug directory contents
+            exit 1
+          fi
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -47,12 +55,12 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Terraform Init and Select Workspace
-        working-directory: ${{ env.TF_WORKING_DIR }}  # Set working directory
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform init
-          terraform workspace select ${{ github.event.inputs.environment }} || terraform workspace new ${{ github.event.inputs.environment }}
+          terraform init -no-color
+          terraform workspace select ${{ github.event.inputs.environment }} || \
+          terraform workspace new ${{ github.event.inputs.environment }}
 
       - name: Terraform Destroy
-        working-directory: ${{ env.TF_WORKING_DIR }}  # Set working directory
-        run: |
-          terraform destroy -auto-approve
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform destroy -auto-approve -no-color
