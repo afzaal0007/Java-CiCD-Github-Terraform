@@ -35,3 +35,7 @@ output "ecr_repository_urls" {
 #   description = "Name of the GitHub OIDC role"
 #   value       = module.github_oidc.github_actions_role_name
 # }
+
+output "dynamodb_lock_table" {
+  value = local.dynamodb_table
+}

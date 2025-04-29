@@ -16,6 +16,8 @@ locals {
   node_group_min_size      = 1
   node_group_max_size      = 3
   node_group_desired_size  = 2
+  dynamodb_table           = "terraform-locks"
+
   tags = {
     Name        = "${local.cluster_name}-${local.env}"
     Environment = local.env
