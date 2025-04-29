@@ -18,8 +18,10 @@ permissions:
 
 env:
   TF_WORKING_DIR: './terraform'
-  MAX_RETRIES: 2
+  MAX_RETRIES: 3
   LOCK_TIMEOUT: '25m'
+  RETRY_DELAY: '30s'
+  STALE_LOCK_THRESHOLD: '900' # 15 minutes in seconds
 
 jobs:
   terraform:
@@ -33,14 +35,17 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install GNU grep (for lock ID extraction)
-      run: sudo apt-get update && sudo apt-get install -y grep
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq awscli
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
         aws-region: ${{ secrets.AWS_REGION }}
+        role-duration-seconds: 3600
         audience: sts.amazonaws.com
         role-session-name: GitHubActionsOIDC
 
@@ -59,11 +64,28 @@ jobs:
     - name: Terraform Validate
       run: terraform validate -no-color
 
-    - name: Terraform Plan with Lock Handling
+    - name: Terraform Plan with Enhanced Lock Handling
       run: |
+        function get_lock_age() {
+          LOCK_ID=$1
+          # Get lock creation time from DynamoDB (requires proper permissions)
+          LOCK_CREATED=$(aws dynamodb get-item \
+            --table-name terraform-lock-table \
+            --key '{"LockID":{"S":"'$LOCK_ID'"}}' \
+            --query 'Item.Created.N' --output text 2>/dev/null || echo 0)
+          
+          if [ "$LOCK_CREATED" -gt 0 ]; then
+            NOW=$(date +%s)
+            echo $((NOW - LOCK_CREATED))
+          else
+            echo 0
+          fi
+        }
+
         retry_count=0
         while [ $retry_count -lt $MAX_RETRIES ]; do
           echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
+          
           if terraform plan -input=false -no-color -out=tfplan -lock-timeout=$LOCK_TIMEOUT; then
             echo "Plan completed successfully"
             exit 0
@@ -73,19 +95,26 @@ jobs:
             
             if [ -n "$LOCK_ID" ]; then
               echo "Found lock ID: $LOCK_ID"
-              # Force unlock if lock is stale
-              LOCK_INFO=$(terraform force-unlock -force "$LOCK_ID" 2>&1 || true)
-              if [[ "$LOCK_INFO" == *"successfully unlocked"* ]]; then
-                echo "Stale lock removed"
+              
+              # Check if lock is stale
+              LOCK_AGE=$(get_lock_age "$LOCK_ID")
+              if [ "$LOCK_AGE" -gt $STALE_LOCK_THRESHOLD ]; then
+                echo "Lock is stale ($LOCK_AGE seconds old), forcing unlock"
+                LOCK_INFO=$(terraform force-unlock -force "$LOCK_ID" 2>&1 || true)
+                if [[ "$LOCK_INFO" == *"successfully unlocked"* ]]; then
+                  echo "Stale lock removed"
+                else
+                  echo "Force unlock failed"
+                fi
               else
-                echo "Could not remove lock, will retry"
+                echo "Lock is recent ($LOCK_AGE seconds old), waiting..."
               fi
             fi
             
             ((retry_count++))
             if [ $retry_count -lt $MAX_RETRIES ]; then
-              echo "Waiting 10 seconds before retry..."
-              sleep 10
+              echo "Waiting $RETRY_DELAY before retry..."
+              sleep ${RETRY_DELAY/s/}  # Remove 's' suffix for sleep
             fi
           fi
         done
@@ -93,34 +122,42 @@ jobs:
         echo "Max retries reached, proceeding with lock disabled (not recommended for production)"
         terraform plan -input=false -no-color -out=tfplan -lock=false
 
-    - name: Terraform Apply with Lock Handling
+    - name: Terraform Apply with Enhanced Lock Handling
       if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       run: |
+        function release_lock() {
+          LOCK_ID=$(terraform apply -auto-approve -no-color -lock-timeout=1m tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
+          if [ -n "$LOCK_ID" ]; then
+            echo "Attempting to release lock: $LOCK_ID"
+            LOCK_AGE=$(aws dynamodb get-item \
+              --table-name terraform-lock-table \
+              --key '{"LockID":{"S":"'$LOCK_ID'"}}' \
+              --query 'Item.Created.N' --output text 2>/dev/null || echo 0)
+            
+            if [ "$LOCK_AGE" -gt $STALE_LOCK_THRESHOLD ]; then
+              echo "Force unlocking stale lock (age: $LOCK_AGE seconds)"
+              terraform force-unlock -force "$LOCK_ID" || true
+            else
+              echo "Lock is recent ($LOCK_AGE seconds), not forcing unlock"
+            fi
+          fi
+        }
+
         retry_count=0
         while [ $retry_count -lt $MAX_RETRIES ]; do
           echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
+          
           if terraform apply -auto-approve -no-color -lock-timeout=$LOCK_TIMEOUT tfplan; then
             echo "Apply completed successfully"
             exit 0
           else
-            # Extract lock ID from error output
-            LOCK_ID=$(terraform apply -auto-approve -no-color tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
-            
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found lock ID: $LOCK_ID"
-              # Force unlock if lock is stale
-              LOCK_INFO=$(terraform force-unlock -force "$LOCK_ID" 2>&1 || true)
-              if [[ "$LOCK_INFO" == *"successfully unlocked"* ]]; then
-                echo "Stale lock removed"
-              else
-                echo "Could not remove lock, will retry"
-              fi
-            fi
+            echo "Apply attempt failed"
+            release_lock
             
             ((retry_count++))
             if [ $retry_count -lt $MAX_RETRIES ]; then
-              echo "Waiting 10 seconds before retry..."
-              sleep 10
+              echo "Waiting $RETRY_DELAY before retry..."
+              sleep ${RETRY_DELAY/s/}
             fi
           fi
         done

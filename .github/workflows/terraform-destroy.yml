@@ -1,4 +1,4 @@
-name: Terraform Destroy Infrastructure # Destroy Infrastructure
+name: Terraform Destroy Infrastructure
 
 on:
   workflow_dispatch:
@@ -18,11 +18,14 @@ on:
 permissions:
   id-token: write
   contents: read
-  actions: write  # Needed for policy detachment
+  actions: write
 
 env:
   TERRAFORM_VERSION: '1.11.4'
   TF_WORKING_DIR: 'terraform'
+  MAX_RETRIES: 3
+  LOCK_TIMEOUT: '15m'  # 15 minute lock timeout
+  RETRY_DELAY: '30s'   # 30 seconds between retries
 
 jobs:
   terraform-destroy:
@@ -36,6 +39,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq awscli
+
       - name: Verify Terraform directory exists
         run: |
           if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
@@ -48,16 +56,18 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
+          role-duration-seconds: 3600
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -no-color
+        run: terraform init -no-color -input=false
 
       - name: Detach IAM Policies
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -66,7 +76,7 @@ jobs:
           terraform state list | grep 'aws_iam_policy\.' | while read -r POLICY; do
             echo "Processing $POLICY"
             
-            # Get policy ARN (compatible with all Terraform versions)
+            # Get policy ARN
             ARN=$(terraform state show "$POLICY" | grep -m 1 'arn:' | awk '{print $3}' | tr -d '"')
             
             if [ -n "$ARN" ]; then
@@ -94,19 +104,54 @@ jobs:
             fi
           done
 
-      - name: Terraform Destroy
+      - name: Terraform Destroy with Lock Handling
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
+          # Function to handle lock release
+          release_lock() {
+            LOCK_ID=$(terraform plan -destroy -no-color 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
+            if [ -n "$LOCK_ID" ]; then
+              echo "Attempting to release lock: $LOCK_ID"
+              terraform force-unlock -force "$LOCK_ID" || true
+            fi
+          }
+
           if terraform state list >/dev/null 2>&1; then
             echo "Resources found - proceeding with destroy"
             
-            # First attempt with lock
-            if terraform destroy -auto-approve -no-color; then
-              echo "Destroy completed successfully"
-            else
-              echo "First attempt failed, retrying with lock disabled"
-              terraform destroy -auto-approve -no-color -lock=false
-            fi
+            retry_count=0
+            while [ $retry_count -lt $MAX_RETRIES ]; do
+              echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
+              
+              # First attempt with normal lock timeout
+              if terraform destroy -auto-approve -no-color -lock-timeout=$LOCK_TIMEOUT; then
+                echo "Destroy completed successfully"
+                exit 0
+              else
+                echo "Destroy attempt failed"
+                release_lock
+                
+                ((retry_count++))
+                if [ $retry_count -lt $MAX_RETRIES ]; then
+                  echo "Waiting $RETRY_DELAY before retry..."
+                  sleep ${RETRY_DELAY/s/}  # Remove 's' suffix for sleep
+                fi
+              fi
+            done
+
+            echo "Max retries reached, attempting with lock disabled (not recommended)"
+            terraform destroy -auto-approve -no-color -lock=false
           else
             echo "No resources in state - nothing to destroy"
+          fi
+
+      - name: Verify Destruction
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          if terraform state list >/dev/null 2>&1; then
+            echo "::error::Some resources remain in state!"
+            terraform state list
+            exit 1
+          else
+            echo "All resources destroyed successfully"
           fi
