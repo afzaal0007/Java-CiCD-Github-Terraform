@@ -32,310 +32,139 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y jq python3-pip
-        pip install awscli --upgrade --user
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq python3-pip
+          pip install awscli --upgrade --user
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ secrets.AWS_REGION }}
-        role-duration-seconds: 3600
-        audience: sts.amazonaws.com
-        role-session-name: GitHubActionsOIDC
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-duration-seconds: 3600
+          audience: sts.amazonaws.com
+          role-session-name: GitHubActionsOIDC
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ inputs.terraform_version }}
-        terraform_wrapper: false
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
 
-    - name: Terraform Init
-      run: terraform init -no-color -input=false
+      - name: Terraform Init
+        run: terraform init -no-color -input=false
 
-    - name: Terraform Format
-      run: terraform fmt -check -no-color -recursive
+      - name: Terraform Format
+        run: terraform fmt -check -no-color -recursive
 
-    - name: Terraform Validate
-      run: terraform validate -no-color
+      - name: Terraform Validate
+        run: terraform validate -no-color
 
-    - name: Terraform Plan with Enhanced Lock Handling
-      run: |
-        function get_lock_age() {
-          LOCK_ID=$1
-          # Get lock creation time from DynamoDB
-          LOCK_CREATED=$(aws dynamodb get-item \
-            --table-name $(terraform output -raw dynamodb_lock_table) \
-            --key '{"LockID":{"S":"'$LOCK_ID'"}}' \
-            --query 'Item.CreatedAt.N' --output text 2>/dev/null || echo 0)
-          
-          if [ "$LOCK_CREATED" -gt 0 ]; then
-            NOW=$(date +%s)
-            echo $((NOW - LOCK_CREATED))
-          else
-            echo 0
-          fi
-        }
-
-        retry_count=0
-        while [ $retry_count -lt $MAX_RETRIES ]; do
-          echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
-          
-          if terraform plan -input=false -no-color -out=tfplan -lock-timeout=$LOCK_TIMEOUT; then
-            echo "Plan completed successfully"
-            exit 0
-          else
-            LOCK_ID=$(terraform plan -input=false -no-color -out=tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
+      - name: Terraform Plan with Enhanced Lock Handling
+        run: |
+          function get_lock_age() {
+            LOCK_ID=$1
+            LOCK_CREATED=$(aws dynamodb get-item \
+              --table-name $(terraform output -raw dynamodb_lock_table) \
+              --key '{"LockID":{"S":"'$LOCK_ID'"}}' \
+              --query 'Item.CreatedAt.N' --output text 2>/dev/null || echo 0)
             
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found lock ID: $LOCK_ID"
-              LOCK_AGE=$(get_lock_age "$LOCK_ID")
+            if [ "$LOCK_CREATED" -gt 0 ]; then
+              NOW=$(date +%s)
+              echo $((NOW - LOCK_CREATED))
+            else
+              echo 0
+            fi
+          }
+
+          retry_count=0
+          while [ $retry_count -lt $MAX_RETRIES ]; do
+            echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
+            
+            if terraform plan -input=false -no-color -out=tfplan -lock-timeout=$LOCK_TIMEOUT; then
+              echo "Plan completed successfully"
+              exit 0
+            else
+              LOCK_ID=$(terraform plan -input=false -no-color -out=tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
               
-              if [ "$LOCK_AGE" -gt $STALE_LOCK_THRESHOLD ]; then
-                echo "Force unlocking stale lock (age: $LOCK_AGE seconds)"
-                terraform force-unlock -force "$LOCK_ID" || true
-                sleep 5 # Wait after unlock
-              else
-                echo "Lock is recent ($LOCK_AGE seconds), waiting..."
+              if [ -n "$LOCK_ID" ]; then
+                echo "Found lock ID: $LOCK_ID"
+                LOCK_AGE=$(get_lock_age "$LOCK_ID")
+                
+                if [ "$LOCK_AGE" -gt $STALE_LOCK_THRESHOLD ]; then
+                  echo "Force unlocking stale lock (age: $LOCK_AGE seconds)"
+                  terraform force-unlock -force "$LOCK_ID" || true
+                  sleep 5
+                else
+                  echo "Lock is recent ($LOCK_AGE seconds), waiting..."
+                fi
+              fi
+              
+              ((retry_count++))
+              if [ $retry_count -lt $MAX_RETRIES ]; then
+                echo "Waiting $RETRY_DELAY before retry..."
+                sleep ${RETRY_DELAY/s/}
               fi
             fi
+          done
+
+          echo "Max retries reached, proceeding with lock disabled"
+          terraform plan -input=false -no-color -out=tfplan -lock=false
+
+      - name: Terraform Apply with Enhanced Lock Handling
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          retry_count=0
+          while [ $retry_count -lt $MAX_RETRIES ]; do
+            echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
             
-            ((retry_count++))
-            if [ $retry_count -lt $MAX_RETRIES ]; then
-              echo "Waiting $RETRY_DELAY before retry..."
-              sleep ${RETRY_DELAY/s/}
-            fi
-          fi
-        done
-
-        echo "Max retries reached, proceeding with lock disabled"
-        terraform plan -input=false -no-color -out=tfplan -lock=false
-
-    - name: Terraform Apply with Enhanced Lock Handling
-      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-      run: |
-        retry_count=0
-        while [ $retry_count -lt $MAX_RETRIES ]; do
-          echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
-          
-          if terraform apply -auto-approve -no-color -lock-timeout=$LOCK_TIMEOUT tfplan; then
-            echo "Apply completed successfully"
-            exit 0
-          else
-            LOCK_ID=$(terraform apply -auto-approve -no-color tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
-            
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found lock ID: $LOCK_ID"
-              echo "Forcing unlock after failed apply"
-              terraform force-unlock -force "$LOCK_ID" || true
-              sleep 5 # Wait after unlock
-            fi
-            
-            ((retry_count++))
-            if [ $retry_count -lt $MAX_RETRIES ]; then
-              echo "Waiting $RETRY_DELAY before retry..."
-              sleep ${RETRY_DELAY/s/}
-            fi
-          fi
-        done
-
-        echo "Max retries reached, proceeding with lock disabled"
-        terraform apply -auto-approve -no-color tfplan -lock=false
-
-    - name: Terraform Output
-      if: success()
-      run: |
-        echo "Capturing Terraform outputs..."
-        terraform output -no-color -json > terraform-output.json
-
-    - name: Upload Terraform Output
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: terraform-output
-        path: ${{ env.TF_WORKING_DIR }}/terraform-output.json
-        retention-days: 5
-
-    - name: Cleanup
-      if: always()
-      run: |
-        rm -f terraform-output.json
-        rm -f tfplan
-        rm -rf .terraformname: Infrastructure Deployment
-
-on:
-  workflow_call:
-    secrets:
-      AWS_ROLE_ARN:
-        required: true
-      AWS_REGION:
-        required: true
-    inputs:
-      terraform_version:
-        required: true
-        type: string
-
-permissions:
-  id-token: write
-  contents: read
-
-env:
-  TF_WORKING_DIR: './terraform'
-  MAX_RETRIES: 3
-  LOCK_TIMEOUT: '25m'
-  RETRY_DELAY: '30s'
-  STALE_LOCK_THRESHOLD: '900' # 15 minutes in seconds
-
-jobs:
-  terraform:
-    name: 'Terraform'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y jq python3-pip
-        pip install awscli --upgrade --user
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ secrets.AWS_REGION }}
-        role-duration-seconds: 3600
-        audience: sts.amazonaws.com
-        role-session-name: GitHubActionsOIDC
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ inputs.terraform_version }}
-        terraform_wrapper: false
-
-    - name: Terraform Init
-      run: terraform init -no-color -input=false
-
-    - name: Terraform Format
-      run: terraform fmt -check -no-color -recursive
-
-    - name: Terraform Validate
-      run: terraform validate -no-color
-
-    - name: Terraform Plan with Enhanced Lock Handling
-      run: |
-        function get_lock_age() {
-          LOCK_ID=$1
-          # Get lock creation time from DynamoDB
-          LOCK_CREATED=$(aws dynamodb get-item \
-            --table-name $(terraform output -raw dynamodb_lock_table) \
-            --key '{"LockID":{"S":"'$LOCK_ID'"}}' \
-            --query 'Item.CreatedAt.N' --output text 2>/dev/null || echo 0)
-          
-          if [ "$LOCK_CREATED" -gt 0 ]; then
-            NOW=$(date +%s)
-            echo $((NOW - LOCK_CREATED))
-          else
-            echo 0
-          fi
-        }
-
-        retry_count=0
-        while [ $retry_count -lt $MAX_RETRIES ]; do
-          echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
-          
-          if terraform plan -input=false -no-color -out=tfplan -lock-timeout=$LOCK_TIMEOUT; then
-            echo "Plan completed successfully"
-            exit 0
-          else
-            LOCK_ID=$(terraform plan -input=false -no-color -out=tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
-            
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found lock ID: $LOCK_ID"
-              LOCK_AGE=$(get_lock_age "$LOCK_ID")
+            if terraform apply -auto-approve -no-color -lock-timeout=$LOCK_TIMEOUT tfplan; then
+              echo "Apply completed successfully"
+              exit 0
+            else
+              LOCK_ID=$(terraform apply -auto-approve -no-color tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
               
-              if [ "$LOCK_AGE" -gt $STALE_LOCK_THRESHOLD ]; then
-                echo "Force unlocking stale lock (age: $LOCK_AGE seconds)"
+              if [ -n "$LOCK_ID" ]; then
+                echo "Found lock ID: $LOCK_ID"
+                echo "Forcing unlock after failed apply"
                 terraform force-unlock -force "$LOCK_ID" || true
-                sleep 5 # Wait after unlock
-              else
-                echo "Lock is recent ($LOCK_AGE seconds), waiting..."
+                sleep 5
+              fi
+              
+              ((retry_count++))
+              if [ $retry_count -lt $MAX_RETRIES ]; then
+                echo "Waiting $RETRY_DELAY before retry..."
+                sleep ${RETRY_DELAY/s/}
               fi
             fi
-            
-            ((retry_count++))
-            if [ $retry_count -lt $MAX_RETRIES ]; then
-              echo "Waiting $RETRY_DELAY before retry..."
-              sleep ${RETRY_DELAY/s/}
-            fi
-          fi
-        done
+          done
 
-        echo "Max retries reached, proceeding with lock disabled"
-        terraform plan -input=false -no-color -out=tfplan -lock=false
+          echo "Max retries reached, proceeding with lock disabled"
+          terraform apply -auto-approve -no-color tfplan -lock=false
 
-    - name: Terraform Apply with Enhanced Lock Handling
-      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-      run: |
-        retry_count=0
-        while [ $retry_count -lt $MAX_RETRIES ]; do
-          echo "Attempt $((retry_count + 1)) of $MAX_RETRIES"
-          
-          if terraform apply -auto-approve -no-color -lock-timeout=$LOCK_TIMEOUT tfplan; then
-            echo "Apply completed successfully"
-            exit 0
-          else
-            LOCK_ID=$(terraform apply -auto-approve -no-color tfplan 2>&1 | grep -oP 'ID:\s*\K[^\s]+' || true)
-            
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found lock ID: $LOCK_ID"
-              echo "Forcing unlock after failed apply"
-              terraform force-unlock -force "$LOCK_ID" || true
-              sleep 5 # Wait after unlock
-            fi
-            
-            ((retry_count++))
-            if [ $retry_count -lt $MAX_RETRIES ]; then
-              echo "Waiting $RETRY_DELAY before retry..."
-              sleep ${RETRY_DELAY/s/}
-            fi
-          fi
-        done
+      - name: Terraform Output
+        if: success()
+        run: |
+          echo "Capturing Terraform outputs..."
+          terraform output -no-color -json > terraform-output.json
 
-        echo "Max retries reached, proceeding with lock disabled"
-        terraform apply -auto-approve -no-color tfplan -lock=false
+      - name: Upload Terraform Output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-output
+          path: ${{ env.TF_WORKING_DIR }}/terraform-output.json
+          retention-days: 5
 
-    - name: Terraform Output
-      if: success()
-      run: |
-        echo "Capturing Terraform outputs..."
-        terraform output -no-color -json > terraform-output.json
-
-    - name: Upload Terraform Output
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: terraform-output
-        path: ${{ env.TF_WORKING_DIR }}/terraform-output.json
-        retention-days: 5
-
-    - name: Cleanup
-      if: always()
-      run: |
-        rm -f terraform-output.json
-        rm -f tfplan
-        rm -rf .terrafor
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f terraform-output.json
+          rm -f tfplan
+          rm -rf .terraform
