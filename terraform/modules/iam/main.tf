@@ -93,22 +93,38 @@ resource "aws_iam_role_policy_attachment" "eks_admin" {
   count      = length(aws_iam_role.eks_admin) > 0 ? 1 : 0
   role       = aws_iam_role.eks_admin[count.index].name
   policy_arn = aws_iam_policy.eks_admin.arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_admin_worker" {
   count      = length(aws_iam_role.eks_admin) > 0 ? 1 : 0
   role       = aws_iam_role.eks_admin[count.index].name
   policy_arn = aws_iam_policy.eks_admin_worker.arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_admin_cni" {
   count      = length(aws_iam_role.eks_admin) > 0 ? 1 : 0
   role       = aws_iam_role.eks_admin[count.index].name
   policy_arn = aws_iam_policy.eks_admin_cni.arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_admin_ecr" {
   count      = length(aws_iam_role.eks_admin) > 0 ? 1 : 0
   role       = aws_iam_role.eks_admin[count.index].name
   policy_arn = aws_iam_policy.eks_admin_ecr.arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }

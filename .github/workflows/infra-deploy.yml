@@ -19,7 +19,7 @@ permissions:
 env:
   TF_WORKING_DIR: './terraform'
   MAX_RETRIES: 2
-  LOCK_TIMEOUT: '15m'
+  LOCK_TIMEOUT: '25m'
 
 jobs:
   terraform:

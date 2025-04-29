@@ -27,6 +27,10 @@ resource "aws_iam_policy" "aws_lbc" {
 resource "aws_iam_role_policy_attachment" "aws_lbc" {
   policy_arn = aws_iam_policy.aws_lbc.arn
   role       = aws_iam_role.aws_lbc.name
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eks_pod_identity_association" "aws_lbc" {

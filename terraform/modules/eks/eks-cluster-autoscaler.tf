@@ -55,6 +55,10 @@ resource "aws_iam_policy" "cluster_autoscaler" {
 resource "aws_iam_role_policy_attachment" "cluster_autoscaler" {
   policy_arn = aws_iam_policy.cluster_autoscaler.arn
   role       = aws_iam_role.cluster_autoscaler.name
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eks_pod_identity_association" "cluster_autoscaler" {

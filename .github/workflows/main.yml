@@ -16,7 +16,7 @@ concurrency:
 env:
   ECR_REPOSITORY: afzaal-ecr-repo
   EKS_CLUSTER_NAME: my-cluster
-  TERRAFORM_VERSION: 1.5.0
+  TERRAFORM_VERSION: 1.11.4
   PRODUCTION_URL: https://your-production-url.com
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
     with:
-      terraform_version: '1.5.0'    # Directly specify the version
+      terraform_version: '1.11.4'    # Directly specify the version
 
   build-and-push:
     needs: terraform-deploy

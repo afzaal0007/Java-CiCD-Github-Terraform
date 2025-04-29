@@ -146,5 +146,9 @@ resource "aws_iam_policy" "terraform_policy" {
 resource "aws_iam_role_policy_attachment" "terraform_policy_attachment" {
   role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.terraform_policy.arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
